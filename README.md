@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo.png" alt="rustLink Logo" width="200"/>
+  <img src="assets/logo.png" alt="rustLink Logo" width="200"/>
 </p>
 
 # rustLink
@@ -35,7 +35,7 @@ A high-performance URL shortener built with Rust, featuring PostgreSQL persisten
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/rustlink.git
+git clone https://github.com/alan13367/rustlink.git
 cd rustlink
 ```
 
