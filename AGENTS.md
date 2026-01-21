@@ -190,3 +190,36 @@ pub struct AppState {
 - Repository methods have return type `AppResult<T>`
 - Cache operations are fallible - handle gracefully if Redis is unavailable
 - The server continues without cache if Redis connection fails on startup
+
+---
+
+## Maintenance Notes
+
+> **IMPORTANT**: Keep documentation updated after making code changes!
+>
+> When modifying the codebase, ensure the following documentation files are kept current:
+>
+> 1. **AGENTS.md** (this file) - Maintain architecture overview, file structure,
+>    API endpoints, configuration options, database schema, and development patterns
+>
+> 2. **README.md** - Update user-facing documentation when:
+>    - New features are added
+>    - API endpoints change
+>    - Configuration options are added
+>    - Usage examples need updating
+>    - Installation steps change
+>
+> ### Checklist Before Committing
+>
+> After code changes, verify you've updated:
+>
+> - [ ] File structure (added/removed files in this document)
+> - [ ] Architecture overview (new components, data flow changes)
+> - [ ] API endpoints (new/modified endpoints, auth requirements)
+> - [ ] Configuration (new environment variables)
+> - [ ] Database schema (new tables, migrations)
+> - [ ] Error handling (new error variants)
+> - [ ] README.md if user-facing features changed
+>
+> This ensures the documentation remains an accurate reference for future development.
+
