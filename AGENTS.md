@@ -9,6 +9,9 @@ A high-performance URL shortener built with Rust, using:
 - **Clap** - CLI with subcommands
 - **thiserror** - Error handling (no `.unwrap()` or `.expect()` allowed)
 - **Tokio** - Async runtime
+- **jsonwebtoken** - JWT token authentication
+- **bcrypt** - Password hashing for user authentication
+- **url** - URL validation and parsing
 
 ## Architecture
 
@@ -36,6 +39,8 @@ A high-performance URL shortener built with Rust, using:
 | `src/models.rs` | `UrlEntry`, request/response DTOs |
 | `src/db.rs` | `Repository` - SQLx database operations |
 | `src/cache.rs` | `Cache` - Redis wrapper with connection pooling |
+| `src/auth.rs` | JWT authentication service (token generation/validation) |
+| `src/middleware.rs` | User repository extension for authentication |
 | `src/routes.rs` | Axum handlers and `AppState` definition |
 
 ## CLI Commands
@@ -52,38 +57,75 @@ cargo run -- admin ping-cache
 
 | Method | Path | Description |
 |--------|------|-------------|
+| POST | `/login` | Get JWT token (body: `{"username": "...", "password": "..."}`) |
 | POST | `/` | Create short URL (body: `{"url": "...", "custom_code"?, "expiry_hours"?}`) |
 | GET | `/:code` | Resolve short URL → 301 redirect |
 | GET | `/:code/info` | Get URL metadata |
-| DELETE | `/:code` | Delete URL |
-| GET | `/_stats` | Global stats |
-| GET | `/_list?limit=50&offset=0` | List URLs |
+| DELETE | `/:code` | Delete URL **(requires JWT)** |
+| GET | `/_stats` | Global stats **(requires JWT)** |
+| GET | `/_list?limit=50&offset=0` | List URLs **(requires JWT)** |
 
 ## Environment Variables
 
 Copy `.env.example` to `.env` and configure:
 
 ```bash
+# Server
 SERVER_HOST=127.0.0.1
 SERVER_PORT=3000
+
+# Database
 DATABASE_URL=postgresql://...
+DB_MAX_CONNECTIONS=10
+DB_MIN_CONNECTIONS=1
+DB_ACQUIRE_TIMEOUT_SECONDS=30
+
+# Cache (Redis)
 REDIS_URL=redis://127.0.0.1:6379
+CACHE_MAX_CONNECTIONS=10
+CACHE_DEFAULT_TTL_SECONDS=3600
+
+# URL Configuration
 SHORT_CODE_LENGTH=8
+SHORT_CODE_MAX_ATTEMPTS=10
 BASE_URL=http://localhost:3000
 DEFAULT_EXPIRY_HOURS=720
+CACHE_ENABLED=true
+STRICT_URL_VALIDATION=true
+
+# Authentication
+JWT_SECRET=your-secret-key-here
+JWT_EXPIRATION_HOURS=24
+
+# Rate Limiting
+RATE_LIMIT_PER_MINUTE=10
+RATE_LIMIT_BURST=5
+
+# CORS
+ALLOWED_ORIGINS=http://localhost:3000,https://yourdomain.com
 ```
 
 ## Database Schema
 
 ```sql
+-- URLs table
 CREATE TABLE urls (
     id BIGSERIAL PRIMARY KEY,
     short_code VARCHAR(16) UNIQUE NOT NULL,
     original_url TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     expires_at TIMESTAMPTZ,
     click_count BIGINT DEFAULT 0,
     last_clicked_at TIMESTAMPTZ
+);
+
+-- Users table for authentication
+CREATE TABLE users (
+    id BIGSERIAL PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    is_active BOOLEAN NOT NULL DEFAULT TRUE
 );
 ```
 
@@ -99,10 +141,14 @@ pub enum AppError {
     Database(#[from] sqlx::Error),
     #[error("Redis error: {0}")]
     Redis(#[from] redis::RedisError),
+    #[error("Authentication failed: {0}")]
+    Unauthorized(String),
+    #[error("User not found: {0}")]
+    UserNotFound(String),
+    #[error("User already exists: {0}")]
+    UserExists(String),
     // ...
 }
-
-pub type AppResult<T> = Result<T, AppError>;
 ```
 
 `AppError` implements `IntoResponse` for Axum, returning appropriate HTTP status codes.
