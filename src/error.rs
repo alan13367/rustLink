@@ -49,9 +49,6 @@ pub enum AppError {
 
     #[error("User not found: {0}")]
     UserNotFound(String),
-
-    #[error("User already exists: {0}")]
-    UserExists(String),
 }
 
 /// Convert AppError to HTTP response
@@ -112,7 +109,6 @@ impl IntoResponse for AppError {
             AppError::UserNotFound(_) => {
                 (StatusCode::NOT_FOUND, self.to_string(), "USER_NOT_FOUND")
             }
-            AppError::UserExists(_) => (StatusCode::CONFLICT, self.to_string(), "USER_EXISTS"),
             _ => {
                 tracing::error!("Internal error: {}", self);
                 (

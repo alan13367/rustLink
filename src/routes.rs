@@ -1,5 +1,6 @@
 use crate::auth::{AuthService, Claims, LoginRequest, LoginResponse};
 use crate::cache::Cache;
+use crate::config::RateLimitConfig;
 use crate::db::Repository;
 use crate::error::{AppError, AppResult};
 use crate::models::{CreateUrlRequest, CreateUrlResponse, UrlInfoResponse};
@@ -15,12 +16,14 @@ use nanoid::nanoid;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use std::time::Duration as StdDuration;
+use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
 use tower_http::cors::{Any, CorsLayer};
 use url::Url as UrlParser;
 use validator::Validate;
 
 /// Helper to extract JWT claims from Authorization header
-fn extract_claims(headers: &axum::http::HeaderMap) -> AppResult<Claims> {
+fn extract_claims(headers: &axum::http::HeaderMap, auth_service: &AuthService) -> AppResult<Claims> {
     let auth_header = headers
         .get("Authorization")
         .ok_or_else(|| AppError::Internal("Missing Authorization header".to_string()))?;
@@ -36,15 +39,6 @@ fn extract_claims(headers: &axum::http::HeaderMap) -> AppResult<Claims> {
     }
 
     let token = &auth_str[7..];
-    let secret = std::env::var("JWT_SECRET").map_err(|_| {
-        AppError::Configuration("JWT_SECRET not configured".to_string())
-    })?;
-    let expiration_hours: i64 = std::env::var("JWT_EXPIRATION_HOURS")
-        .unwrap_or_else(|_| "24".to_string())
-        .parse()
-        .unwrap_or(24);
-
-    let auth_service = AuthService::new(secret, expiration_hours);
     auth_service.validate_token(token)
 }
 
@@ -53,6 +47,7 @@ fn extract_claims(headers: &axum::http::HeaderMap) -> AppResult<Claims> {
 pub struct AppState {
     pub repository: Repository,
     pub cache: Cache,
+    pub auth_service: AuthService,
     pub base_url: String,
     pub default_expiry_hours: i64,
     pub short_code_length: usize,
@@ -66,11 +61,111 @@ pub struct AppState {
 pub struct ListUrlsQuery {
     pub limit: Option<i64>,
     pub offset: Option<i64>,
-    pub cursor: Option<String>, // For cursor-based pagination
+}
+
+/// Health check response
+#[derive(Debug, Serialize)]
+struct HealthCheckResponse {
+    pub status: String,
+    pub database: HealthStatus,
+    pub cache: HealthStatus,
+    pub timestamp: chrono::DateTime<Utc>,
+}
+
+/// Individual health status
+#[derive(Debug, Serialize)]
+struct HealthStatus {
+    pub status: String,
+    pub latency_ms: Option<u64>,
+}
+
+/// Health check endpoint
+pub async fn health_check(State(state): State<Arc<AppState>>) -> AppResult<impl IntoResponse> {
+    let start = std::time::Instant::now();
+
+    // Check database connectivity
+    let db_health = match tokio::time::timeout(
+        StdDuration::from_secs(5),
+        state.repository.pool.acquire(),
+    )
+    .await
+    {
+        Ok(Ok(_conn)) => {
+            let latency = start.elapsed().as_millis() as u64;
+            HealthStatus {
+                status: "healthy".to_string(),
+                latency_ms: Some(latency),
+            }
+        }
+        Ok(Err(_)) | Err(_) => HealthStatus {
+            status: "unhealthy".to_string(),
+            latency_ms: None,
+        },
+    };
+
+    // Check cache connectivity
+    let cache_start = std::time::Instant::now();
+    let cache_health = match tokio::time::timeout(
+        StdDuration::from_secs(5),
+        state.cache.ping(),
+    )
+    .await
+    {
+        Ok(Ok(_)) => {
+            let latency = cache_start.elapsed().as_millis() as u64;
+            HealthStatus {
+                status: "healthy".to_string(),
+                latency_ms: Some(latency),
+            }
+        }
+        Ok(Err(_)) | Err(_) => HealthStatus {
+            status: "unhealthy".to_string(),
+            latency_ms: None,
+        },
+    };
+
+    // Determine overall health
+    let overall_status = if db_health.status == "healthy" {
+        "healthy"
+    } else {
+        "degraded"
+    };
+
+    let response = HealthCheckResponse {
+        status: overall_status.to_string(),
+        database: db_health,
+        cache: cache_health,
+        timestamp: Utc::now(),
+    };
+
+    Ok(Json(response))
 }
 
 /// Create the application router
-pub fn create_router(state: Arc<AppState>, allowed_origins: Vec<String>) -> Router {
+pub fn create_router(state: Arc<AppState>, allowed_origins: Vec<String>, rate_limit_config: RateLimitConfig) -> Router {
+    // Configure rate limiting for sensitive endpoints
+    // Stricter limits for login and URL creation (rate_limit.requests_per_minute per minute)
+    let governor_conf_strict = Arc::new(
+        GovernorConfigBuilder::default()
+            .per_millisecond(60000 / rate_limit_config.requests_per_minute)
+            .burst_size(rate_limit_config.burst_size)
+            .finish()
+            .expect("Failed to build governor config"),
+    );
+
+    let governor_layer_strict = GovernorLayer::new(governor_conf_strict.clone());
+
+    // More lenient limits for public endpoints (GET requests)
+    let governor_conf_lenient = Arc::new(
+        GovernorConfigBuilder::default()
+            .per_millisecond(60000 / (rate_limit_config.requests_per_minute * 2))
+            .burst_size(rate_limit_config.burst_size * 2)
+            .finish()
+            .expect("Failed to build governor config"),
+    );
+
+    let governor_layer_lenient = GovernorLayer::new(governor_conf_lenient.clone());
+
     // Configure CORS with specific origins
     let cors = if allowed_origins.iter().any(|o| o == "*") {
         CorsLayer::new()
@@ -88,14 +183,30 @@ pub fn create_router(state: Arc<AppState>, allowed_origins: Vec<String>) -> Rout
             .allow_headers(Any)
     };
 
-    Router::new()
+    // Build router with rate limiting using merge
+    // Strict rate limit for sensitive endpoints (POST /, POST /login, DELETE /{code}, /_stats, /_list)
+    let sensitive_routes = Router::new()
         .route("/", post(create_url))
         .route("/login", post(login))
-        .route("/{code}", get(resolve_url))
-        .route("/{code}/info", get(get_url_info))
         .route("/{code}", delete(delete_url))
         .route("/_stats", get(get_stats))
         .route("/_list", get(list_urls))
+        .layer(governor_layer_strict);
+
+    // Lenient rate limit for public endpoints (GET /{code}, GET /{code}/info)
+    let public_routes = Router::new()
+        .route("/{code}", get(resolve_url))
+        .route("/{code}/info", get(get_url_info))
+        .layer(governor_layer_lenient);
+
+    // Health check endpoint (no rate limiting)
+    let health_routes = Router::new()
+        .route("/_health", get(health_check));
+
+    // Merge routers and apply CORS
+    sensitive_routes
+        .merge(public_routes)
+        .merge(health_routes)
         .layer(cors)
         .with_state(state)
 }
@@ -119,16 +230,8 @@ pub async fn login(
         return Err(AppError::Unauthorized("User account is inactive".to_string()));
     }
 
-    // Generate JWT token
-    let secret = std::env::var("JWT_SECRET")
-        .map_err(|_| AppError::Configuration("JWT_SECRET not configured".to_string()))?;
-    let expiration_hours = std::env::var("JWT_EXPIRATION_HOURS")
-        .unwrap_or_else(|_| "24".to_string())
-        .parse()
-        .unwrap_or(24);
-
-    let auth_service = AuthService::new(secret, expiration_hours);
-    let token = auth_service.generate_token(&user.id.to_string(), &user.username)?;
+    // Generate JWT token using auth service from state
+    let token = state.auth_service.generate_token(&user.id.to_string(), &user.username)?;
 
     Ok(Json(LoginResponse {
         token,
@@ -142,7 +245,7 @@ pub async fn create_url(
     Json(payload): Json<CreateUrlRequest>,
 ) -> AppResult<impl IntoResponse> {
     payload.validate().map_err(|e| {
-        AppError::InvalidUrl(format!("Validation failed: {}", e.to_string()))
+        AppError::InvalidUrl(format!("Validation failed: {}", e))
     })?;
 
     // Proper URL validation
@@ -308,7 +411,7 @@ pub async fn delete_url(
     headers: axum::http::HeaderMap,
     Path(code): Path<String>,
 ) -> AppResult<impl IntoResponse> {
-    let _claims = extract_claims(&headers)?;
+    let _claims = extract_claims(&headers, &state.auth_service)?;
     let deleted = state.repository.delete_url(&code).await?;
 
     if !deleted {
@@ -336,7 +439,7 @@ pub async fn get_stats(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
 ) -> AppResult<impl IntoResponse> {
-    let _claims = extract_claims(&headers)?;
+    let _claims = extract_claims(&headers, &state.auth_service)?;
     let stats = state.repository.get_stats().await?;
 
     let response = StatsResponse {
@@ -355,7 +458,7 @@ pub async fn list_urls(
     Query(query): Query<ListUrlsQuery>,
     headers: axum::http::HeaderMap,
 ) -> AppResult<impl IntoResponse> {
-    let _claims = extract_claims(&headers)?;
+    let _claims = extract_claims(&headers, &state.auth_service)?;
     let limit = query.limit.unwrap_or(50).min(100); // Max 100
     let offset = query.offset.unwrap_or(0);
 

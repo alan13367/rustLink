@@ -56,7 +56,7 @@ base64 = "0.22"
 bcrypt = "0.16"
 
 # Rate limiting
-tower_governor = "0.5"
+tower_governor = "0.8"
 
 # URL validation
 url = "2.5"

@@ -12,21 +12,23 @@ A high-performance URL shortener built with Rust, using:
 - **jsonwebtoken** - JWT token authentication
 - **bcrypt** - Password hashing for user authentication
 - **url** - URL validation and parsing
+- **tower_governor** - Rate limiting middleware
 
 ## Architecture
 
 ```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   HTTP      │────▶│    Axum     │────▶│  AppState   │
-│  Client     │     │  Router     │     │  (Arc<>)    │
-└─────────────┘     └─────────────┘     └──────┬──────┘
-                                                 │
-                     ┌────────────────────────────┼────────────────────────────┐
-                     ▼                            ▼                            ▼
-              ┌─────────────┐            ┌─────────────┐            ┌─────────────┐
-              │   Redis     │            │ PostgreSQL  │            │   Config    │
-              │   Cache     │            │  SQLx Pool  │            │  (env vars) │
-              └─────────────┘            └─────────────┘            └─────────────┘
+┌─────────────┐     ┌──────────────────┐     ┌─────────────┐
+│   HTTP      │────▶│    Axum        │────▶│  AppState   │
+│  Client     │     │  Router + Rate  │     │  (Arc<>)    │
+└─────────────┘     │  Limiting      │     └──────┬──────┘
+                    └──────────────────┘            │
+                         │                     │
+                         │            ┌────────┴────────┬────────────┐
+                         │            ▼                 ▼            ▼
+                    ┌─────────┐   ┌─────────────┐  ┌─────────────┐
+                    │Governor │   │   Redis     │  │ PostgreSQL  │
+                    │Middleware│   │   Cache     │  │  SQLx Pool  │
+                    └─────────┘   └─────────────┘  └─────────────┘
 ```
 
 ## File Structure
@@ -57,6 +59,7 @@ cargo run -- admin ping-cache
 
 | Method | Path | Description |
 |--------|------|-------------|
+| GET | `/_health` | Health check (DB + Redis connectivity, no auth) |
 | POST | `/login` | Get JWT token (body: `{"username": "...", "password": "..."}`) |
 | POST | `/` | Create short URL (body: `{"url": "...", "custom_code"?, "expiry_hours"?}`) |
 | GET | `/:code` | Resolve short URL → 301 redirect |
@@ -145,8 +148,6 @@ pub enum AppError {
     Unauthorized(String),
     #[error("User not found: {0}")]
     UserNotFound(String),
-    #[error("User already exists: {0}")]
-    UserExists(String),
     // ...
 }
 ```
@@ -164,6 +165,25 @@ Uses `nanoid!` macro with alphanumeric alphabet (62 characters). Retries up to 1
 - Cache is populated on cache miss from database
 - Click updates spawn async tasks and invalidate cache
 
+## Rate Limiting
+
+- **Strict limits** applied to sensitive endpoints:
+  - `POST /` - URL creation
+  - `POST /login` - Authentication
+  - `DELETE /{code}` - URL deletion
+  - `GET /_stats` - Statistics
+  - `GET /_list` - URL listing
+
+- **Lenient limits** applied to public endpoints:
+  - `GET /{code}` - URL resolution
+  - `GET /{code}/info` - URL metadata
+
+- **No rate limiting** on health check endpoint:
+  - `GET /_health` - Health monitoring
+
+- Configurable via `RATE_LIMIT_PER_MINUTE` and `RATE_LIMIT_BURST` environment variables
+- Uses IP-based rate limiting with `tower_governor`
+
 ## State Management
 
 `AppState` is wrapped in `Arc` for sharing across request handlers:
@@ -172,9 +192,13 @@ Uses `nanoid!` macro with alphanumeric alphabet (62 characters). Retries up to 1
 pub struct AppState {
     pub repository: Repository,  // Cloneable (PgPool is Arc internally)
     pub cache: Cache,            // Cloneable (Pool is Arc internally)
+    pub auth_service: AuthService, // JWT token generation/validation
     pub base_url: String,
     pub default_expiry_hours: i64,
     pub short_code_length: usize,
+    pub short_code_max_attempts: u32,
+    pub cache_enabled: bool,
+    pub strict_url_validation: bool,
 }
 ```
 
@@ -190,6 +214,8 @@ pub struct AppState {
 - Repository methods have return type `AppResult<T>`
 - Cache operations are fallible - handle gracefully if Redis is unavailable
 - The server continues without cache if Redis connection fails on startup
+- Rate limiting is applied to prevent abuse - configure via environment variables
+- Health check endpoint (`/_health`) provides service health monitoring
 
 ---
 

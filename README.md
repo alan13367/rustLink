@@ -17,7 +17,8 @@ A high-performance URL shortener built with Rust, featuring PostgreSQL persisten
 - **RESTful API**: Clean JSON API with CORS support
 - **CLI**: Easy-to-use command-line interface
 - **JWT Authentication**: Secure admin endpoints with JWT token authentication
-- **Rate Limiting**: Protect against abuse with configurable rate limiting
+- **Rate Limiting**: IP-based rate limiting to prevent abuse
+- **Health Checks**: Endpoint for monitoring service health
 - **Graceful Shutdown**: Handle SIGTERM/SIGINT signals properly
 
 ## Tech Stack
@@ -29,6 +30,7 @@ A high-performance URL shortener built with Rust, featuring PostgreSQL persisten
 - **[Clap](https://github.com/clap-rs/clap)** - CLI argument parsing
 - **[jsonwebtoken](https://github.com/Keats/jsonwebtoken)** - JWT token authentication
 - **[bcrypt](https://github.com/Keats/bcrypt)** - Password hashing
+- **[tower_governor](https://github.com/benwis/tower-governor)** - Rate limiting middleware
 
 ## Prerequisites
 
@@ -91,6 +93,30 @@ cargo run -- admin ping-cache
 ```
 
 ## API Endpoints
+
+### Health Check
+
+**Note**: No authentication required.
+
+```http
+GET /_health
+```
+
+Response:
+```json
+{
+  "status": "healthy",
+  "database": {
+    "status": "healthy",
+    "latency_ms": 5
+  },
+  "cache": {
+    "status": "healthy",
+    "latency_ms": 2
+  },
+  "timestamp": "2026-01-22T10:30:00Z"
+}
+```
 
 ### Login (Get JWT Token)
 
@@ -242,9 +268,29 @@ Configuration is loaded from environment variables or `.env` file:
 | `STRICT_URL_VALIDATION` | Use strict URL validation | `true` |
 | `JWT_SECRET` | Secret key for JWT tokens | (required for auth) |
 | `JWT_EXPIRATION_HOURS` | JWT token expiration (hours) | `24` |
-| `RATE_LIMIT_PER_MINUTE` | Rate limit for URL creation | `10` |
+| `RATE_LIMIT_PER_MINUTE` | Rate limit for sensitive endpoints | `10` |
 | `RATE_LIMIT_BURST` | Rate limit burst size | `5` |
 | `ALLOWED_ORIGINS` | CORS allowed origins (comma-separated) | `*` |
+
+## Rate Limiting
+
+The API uses IP-based rate limiting to prevent abuse:
+
+- **Strict limits** (configurable via `RATE_LIMIT_PER_MINUTE` and `RATE_LIMIT_BURST`):
+  - `POST /` - URL creation
+  - `POST /login` - Authentication
+  - `DELETE /{code}` - URL deletion
+  - `GET /_stats` - Statistics
+  - `GET /_list` - URL listing
+
+- **Lenient limits** (2x the strict limits):
+  - `GET /{code}` - URL resolution
+  - `GET /{code}/info` - URL metadata
+
+- **No rate limiting**:
+  - `GET /_health` - Health monitoring
+
+Rate limiting is implemented using `tower_governor` with IP-based key extraction.
 
 ## Database Schema
 

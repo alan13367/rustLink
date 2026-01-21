@@ -29,6 +29,7 @@ pub struct LoginResponse {
 }
 
 /// JWT authentication service
+#[derive(Clone)]
 pub struct AuthService {
     secret: String,
     expiration_hours: i64,

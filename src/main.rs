@@ -7,6 +7,7 @@ mod middleware;
 mod models;
 mod routes;
 
+use crate::auth::AuthService;
 use crate::cache::Cache;
 use crate::config::Config;
 use crate::db::Repository;
@@ -128,6 +129,7 @@ async fn run_server(
         &config.database.url,
         config.database.max_connections,
         config.database.min_connections,
+        config.database.acquire_timeout_seconds,
     )
     .await?;
 
@@ -156,9 +158,15 @@ async fn run_server(
     }
 
     // Create application state
+    let auth_service = AuthService::new(
+        config.auth.jwt_secret.clone(),
+        config.auth.jwt_expiration_hours,
+    );
+
     let state = Arc::new(routes::AppState {
         repository,
         cache,
+        auth_service,
         base_url: config.url.base_url.clone(),
         default_expiry_hours: config.url.default_expiry_hours,
         short_code_length: config.url.short_code_length,
@@ -168,7 +176,7 @@ async fn run_server(
     });
 
     // Create router
-    let app = routes::create_router(state, config.cors.allowed_origins);
+    let app = routes::create_router(state, config.cors.allowed_origins, config.rate_limit);
 
     // Start server
     let listener = TcpListener::bind(&addr).await.map_err(|e| {
@@ -222,6 +230,7 @@ async fn run_admin_cleanup(config: Config) -> AppResult<()> {
         &config.database.url,
         config.database.max_connections,
         config.database.min_connections,
+        config.database.acquire_timeout_seconds,
     )
     .await?;
 
@@ -239,6 +248,7 @@ async fn run_admin_migrate(config: Config) -> AppResult<()> {
         &config.database.url,
         config.database.max_connections,
         config.database.min_connections,
+        config.database.acquire_timeout_seconds,
     )
     .await?;
 
@@ -256,6 +266,7 @@ async fn run_admin_stats(config: Config) -> AppResult<()> {
         &config.database.url,
         config.database.max_connections,
         config.database.min_connections,
+        config.database.acquire_timeout_seconds,
     )
     .await?;
 

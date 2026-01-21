@@ -24,8 +24,6 @@ pub struct DatabaseConfig {
     pub url: String,
     pub max_connections: u32,
     pub min_connections: u32,
-    #[allow(dead_code)]
-    #[deprecated(note = "TODO: Implement acquire_timeout in PgPoolOptions")]
     pub acquire_timeout_seconds: u64,
 }
 
@@ -191,13 +189,6 @@ impl Config {
             cors: CorsConfig { allowed_origins },
         })
     }
-
-    /// Get the full server address
-    #[allow(dead_code)]
-    #[deprecated(note = "Use config.server.host and config.server.port directly")]
-    pub fn server_address(&self) -> String {
-        format!("{}:{}", self.server.host, self.server.port)
-    }
 }
 
 #[cfg(test)]
@@ -205,7 +196,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_server_address() {
+    fn test_config_creation() {
         let config = Config {
             server: ServerConfig {
                 host: "127.0.0.1".to_string(),
@@ -243,6 +234,7 @@ mod tests {
             },
         };
 
-        assert_eq!(config.server_address(), "127.0.0.1:3000");
+        assert_eq!(config.server.port, 3000);
+        assert_eq!(config.server.host, "127.0.0.1");
     }
 }

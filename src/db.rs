@@ -5,6 +5,7 @@ use sqlx::{
     postgres::{PgConnectOptions, PgPoolOptions},
     PgPool, ConnectOptions,
 };
+use std::time::Duration;
 use std::str::FromStr;
 
 /// Database repository
@@ -17,7 +18,8 @@ impl Repository {
     pub async fn new(
         database_url: &str,
         max_connections: u32,
-        _min_connections: u32,
+        min_connections: u32,
+        acquire_timeout_seconds: u64,
     ) -> AppResult<Self> {
         let options = PgConnectOptions::from_str(database_url)
             .map_err(|e| AppError::Configuration(format!("Invalid database URL: {}", e)))?
@@ -25,6 +27,8 @@ impl Repository {
 
         let pool = PgPoolOptions::new()
             .max_connections(max_connections)
+            .min_connections(min_connections)
+            .acquire_timeout(Duration::from_secs(acquire_timeout_seconds))
             .connect_with(options)
             .await?;
 
