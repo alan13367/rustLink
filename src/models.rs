@@ -4,7 +4,7 @@ use sqlx::FromRow;
 use validator::Validate;
 
 /// URL entry in the database
-#[derive(Debug, Clone, FromRow, Serialize)]
+#[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
 pub struct UrlEntry {
     pub id: i64,
     pub short_code: String,
@@ -63,6 +63,7 @@ impl From<UrlEntry> for UrlInfoResponse {
 
 /// Statistics summary
 #[derive(Debug, Serialize)]
+#[allow(dead_code)]
 pub struct StatsResponse {
     pub total_urls: i64,
     pub total_clicks: i64,
@@ -72,12 +73,14 @@ pub struct StatsResponse {
 
 /// Error response
 #[derive(Debug, Serialize)]
+#[allow(dead_code)]
 pub struct ErrorResponse {
     pub error: String,
     pub message: String,
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct UpdateExpiryRequest {
     pub expiry_hours: i64,
 }

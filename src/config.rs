@@ -21,6 +21,7 @@ pub struct DatabaseConfig {
     pub url: String,
     pub max_connections: u32,
     pub min_connections: u32,
+    #[allow(dead_code)]
     pub acquire_timeout_seconds: u64,
 }
 
@@ -112,6 +113,7 @@ impl Config {
     }
 
     /// Get the full server address
+    #[allow(dead_code)]
     pub fn server_address(&self) -> String {
         format!("{}:{}", self.server.host, self.server.port)
     }

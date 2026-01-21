@@ -42,9 +42,9 @@ pub fn create_router(state: Arc<AppState>) -> Router {
 
     Router::new()
         .route("/", post(create_url))
-        .route("/:code", get(resolve_url))
-        .route("/:code/info", get(get_url_info))
-        .route("/:code", delete(delete_url))
+        .route("/{code}", get(resolve_url))
+        .route("/{code}/info", get(get_url_info))
+        .route("/{code}", delete(delete_url))
         .route("/_stats", get(get_stats))
         .route("/_list", get(list_urls))
         .layer(cors)

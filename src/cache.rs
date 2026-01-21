@@ -18,7 +18,7 @@ impl Cache {
             .map_err(|e| AppError::Configuration(format!("Invalid Redis URL: {}", e)))?;
 
         let pool = Pool::builder(manager)
-            .max_size(max_connections)
+            .max_size(max_connections as usize)
             .runtime(Runtime::Tokio1)
             .build()
             .map_err(|e| AppError::Configuration(format!("Failed to create Redis pool: {}", e)))?;
@@ -32,16 +32,25 @@ impl Cache {
     /// Ping the Redis server to check connectivity
     pub async fn ping(&self) -> AppResult<String> {
         let mut conn = self.pool.get().await?;
-        let response: String = redis::cmd("PING").query_async(&mut conn).await?;
+        let response: String = redis::cmd("PING").query_async(&mut *conn).await?;
         Ok(response)
     }
 
     /// Get a URL from cache by short code
+    /// Returns None if cache fails or entry not found
     pub async fn get_url(&self, short_code: &str) -> AppResult<Option<UrlEntry>> {
         let key = Self::url_key(short_code);
-        let mut conn = self.pool.get().await?;
 
-        let value: Option<String> = conn.get(&key).await?;
+        // Try to get connection with timeout, return None if Redis is unavailable
+        let mut conn = match self.pool.get().await {
+            Ok(c) => c,
+            Err(_) => return Ok(None),
+        };
+
+        let value: Option<String> = match conn.get(&key).await {
+            Ok(v) => v,
+            Err(_) => return Ok(None), // Cache error treated as miss
+        };
 
         match value {
             Some(v) => {
@@ -57,10 +66,11 @@ impl Cache {
     pub async fn set_url(&self, entry: &UrlEntry) -> AppResult<()> {
         let key = Self::url_key(&entry.short_code);
         let value = serde_json::to_string(entry)?;
+        let ttl = self.default_ttl.as_secs();
         let mut conn = self.pool.get().await?;
 
-        conn.set_ex(&key, value, self.default_ttl.as_secs() as usize)
-            .await?;
+        // Type annotation needed for return type
+        let _: () = conn.set_ex(&key, value, ttl).await?;
 
         Ok(())
     }
@@ -70,12 +80,13 @@ impl Cache {
         let key = Self::url_key(short_code);
         let mut conn = self.pool.get().await?;
 
-        conn.del(&key).await?;
+        let _: () = conn.del(&key).await?;
 
         Ok(())
     }
 
     /// Check if a short code exists in cache
+    #[allow(dead_code)]
     pub async fn exists(&self, short_code: &str) -> AppResult<bool> {
         let key = Self::url_key(short_code);
         let mut conn = self.pool.get().await?;
@@ -85,16 +96,19 @@ impl Cache {
     }
 
     /// Set a custom TTL for a URL
+    #[allow(dead_code)]
     pub async fn set_expiry(&self, short_code: &str, ttl_seconds: u64) -> AppResult<()> {
         let key = Self::url_key(short_code);
+        let ttl = ttl_seconds as i64;
         let mut conn = self.pool.get().await?;
 
-        conn.expire(&key, ttl_seconds).await?;
+        let _: () = conn.expire(&key, ttl).await?;
 
         Ok(())
     }
 
     /// Clear all cached URLs (use with caution)
+    #[allow(dead_code)]
     pub async fn clear_all(&self) -> AppResult<()> {
         let pattern = format!("{}:*", Self::KEY_PREFIX);
         let mut conn = self.pool.get().await?;
@@ -102,35 +116,29 @@ impl Cache {
         // Get all keys matching the pattern
         let keys: Vec<String> = redis::cmd("KEYS")
             .arg(&pattern)
-            .query_async(&mut conn)
+            .query_async(&mut *conn)
             .await?;
 
         if !keys.is_empty() {
-            conn.del(keys).await?;
+            let _: () = conn.del(keys).await?;
         }
 
         Ok(())
     }
 
     /// Get cache statistics
+    #[allow(dead_code)]
     pub async fn get_stats(&self) -> AppResult<CacheStats> {
         let mut conn = self.pool.get().await?;
 
-        let info: String = redis::cmd("INFO")
-            .arg("stats")
-            .query_async(&mut conn)
-            .await?;
-
-        // Parse key_count from INFO response
-        let key_count = info
-            .lines()
-            .find(|line| line.starts_with("keyspace_hits:"))
-            .and_then(|line| line.split(':').nth(1))
-            .and_then(|s| s.parse().unwrap_or(0))
+        // Use DBSIZE for approximate key count
+        let db_size: u32 = redis::cmd("DBSIZE")
+            .query_async(&mut *conn)
+            .await
             .unwrap_or(0);
 
         Ok(CacheStats {
-            keys: key_count,
+            keys: db_size as i64,
             status: "connected".to_string(),
         })
     }
@@ -145,6 +153,7 @@ impl Cache {
 
 /// Cache statistics
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct CacheStats {
     pub keys: i64,
     pub status: String,

@@ -3,7 +3,6 @@ use axum::{
     response::{IntoResponse, Json, Response},
 };
 use serde_json::json;
-use std::fmt;
 use thiserror::Error;
 
 /// Main application error type
@@ -11,6 +10,9 @@ use thiserror::Error;
 pub enum AppError {
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
+
+    #[error("Migration error: {0}")]
+    Migration(#[from] sqlx::migrate::MigrateError),
 
     #[error("Redis error: {0}")]
     Redis(#[from] redis::RedisError),
@@ -43,34 +45,14 @@ pub enum AppError {
     Internal(String),
 }
 
-impl fmt::Display for AppError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            AppError::Database(e) => write!(f, "Database error: {}", e),
-            AppError::Redis(e) => write!(f, "Redis error: {}", e),
-            AppError::RedisPool(e) => write!(f, "Redis pool error: {}", e),
-            AppError::Serialization(e) => write!(f, "Serialization error: {}", e),
-            AppError::UrlNotFound(code) => write!(f, "URL not found: {}", code),
-            AppError::InvalidUrl(url) => write!(f, "Invalid URL: {}", url),
-            AppError::ShortCodeExists(code) => write!(f, "Short code already exists: {}", code),
-            AppError::ShortCodeGenerationFailed => write!(f, "Failed to generate short code"),
-            AppError::Configuration(msg) => write!(f, "Configuration error: {}", msg),
-            AppError::MissingEnvVar(key) => write!(f, "Missing environment variable: {}", key),
-            AppError::Internal(msg) => write!(f, "Internal server error: {}", msg),
-        }
-    }
-}
-
 /// Convert AppError to HTTP response
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let (status, error_message, error_code) = match self {
+        let (status, error_message, error_code) = match &self {
             AppError::UrlNotFound(_) => (StatusCode::NOT_FOUND, self.to_string(), "NOT_FOUND"),
             AppError::InvalidUrl(_) => (StatusCode::BAD_REQUEST, self.to_string(), "INVALID_URL"),
-            AppError::ShortCodeExists(_) => {
-                (StatusCode::CONFLICT, self.to_string(), "CODE_EXISTS")
-            }
-            AppError::Database(ref e) => {
+            AppError::ShortCodeExists(_) => (StatusCode::CONFLICT, self.to_string(), "CODE_EXISTS"),
+            AppError::Database(e) => {
                 tracing::error!("Database error: {:?}", e);
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
@@ -78,7 +60,15 @@ impl IntoResponse for AppError {
                     "DATABASE_ERROR",
                 )
             }
-            AppError::Redis(ref e) => {
+            AppError::Migration(e) => {
+                tracing::error!("Migration error: {:?}", e);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Migration error occurred".to_string(),
+                    "MIGRATION_ERROR",
+                )
+            }
+            AppError::Redis(e) => {
                 tracing::error!("Redis error: {:?}", e);
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
@@ -86,7 +76,7 @@ impl IntoResponse for AppError {
                     "CACHE_ERROR",
                 )
             }
-            AppError::RedisPool(ref e) => {
+            AppError::RedisPool(e) => {
                 tracing::error!("Redis pool error: {:?}", e);
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
@@ -94,7 +84,7 @@ impl IntoResponse for AppError {
                     "CACHE_ERROR",
                 )
             }
-            AppError::Serialization(ref e) => {
+            AppError::Serialization(e) => {
                 tracing::error!("Serialization error: {:?}", e);
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,

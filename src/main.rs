@@ -147,10 +147,11 @@ async fn run_server(
     }
 
     // Create application state
+    let base_url = config.url.base_url.clone();
     let state = Arc::new(routes::AppState {
         repository,
         cache,
-        base_url: config.url.base_url,
+        base_url,
         default_expiry_hours: config.url.default_expiry_hours,
         short_code_length: config.url.short_code_length,
     });

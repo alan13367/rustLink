@@ -4,7 +4,8 @@
       "Bash(dir /a \"C:\\\\Users\\\\Alan\\\\rustLink\")",
       "Bash(dir:*)",
       "Bash(powershell:*)",
-      "Bash(cargo check:*)"
+      "Bash(cargo check:*)",
+      "Bash(cargo build:*)"
     ]
   }
 }

@@ -1,6 +1,6 @@
 use crate::error::{AppError, AppResult};
 use crate::models::UrlEntry;
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Utc};
 use sqlx::{
     postgres::{PgConnectOptions, PgPoolOptions},
     PgPool, ConnectOptions,
@@ -124,6 +124,7 @@ impl Repository {
     }
 
     /// Update expiry for a URL
+    #[allow(dead_code)]
     pub async fn update_expiry(
         &self,
         short_code: &str,
@@ -167,7 +168,7 @@ impl Repository {
             r#"
             SELECT
                 COUNT(*) as total_urls,
-                COALESCE(SUM(click_count), 0) as total_clicks,
+                COALESCE(CAST(SUM(click_count) AS BIGINT), 0) as total_clicks,
                 COUNT(*) FILTER (WHERE expires_at IS NULL OR expires_at > NOW()) as active_urls,
                 COUNT(*) FILTER (WHERE expires_at IS NOT NULL AND expires_at <= NOW()) as expired_urls
             FROM urls
