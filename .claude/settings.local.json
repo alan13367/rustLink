@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir /a \"C:\\\\Users\\\\Alan\\\\rustLink\")",
+      "Bash(dir:*)",
+      "Bash(powershell:*)",
+      "Bash(cargo check:*)"
+    ]
+  }
+}
