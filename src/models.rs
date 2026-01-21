@@ -21,7 +21,11 @@ pub struct CreateUrlRequest {
     #[validate(url(message = "Must be a valid URL"))]
     pub url: String,
 
-    #[validate(range(min = 1, max = 87600, message = "Expiry must be between 1 and 87600 hours"))]
+    #[validate(range(
+        min = 1,
+        max = 87600,
+        message = "Expiry must be between 1 and 87600 hours"
+    ))]
     pub expiry_hours: Option<i64>,
 
     #[validate(length(min = 4, max = 16, message = "Custom code must be 4-16 characters"))]
@@ -64,6 +68,7 @@ impl From<UrlEntry> for UrlInfoResponse {
 /// Statistics summary
 #[derive(Debug, Serialize)]
 #[allow(dead_code)]
+#[deprecated(note = "TODO: Use for admin endpoint with filtering")]
 pub struct StatsResponse {
     pub total_urls: i64,
     pub total_clicks: i64,
@@ -74,6 +79,7 @@ pub struct StatsResponse {
 /// Error response
 #[derive(Debug, Serialize)]
 #[allow(dead_code)]
+#[deprecated(note = "TODO: Use for custom error formatting")]
 pub struct ErrorResponse {
     pub error: String,
     pub message: String,
@@ -81,6 +87,7 @@ pub struct ErrorResponse {
 
 #[derive(Debug, Deserialize)]
 #[allow(dead_code)]
+#[deprecated(note = "TODO: Implement PUT /{code} endpoint for expiry updates")]
 pub struct UpdateExpiryRequest {
     pub expiry_hours: i64,
 }

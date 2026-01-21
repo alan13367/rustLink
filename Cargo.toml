@@ -50,6 +50,26 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 # Validation
 validator = { version = "0.20", features = ["derive"] }
 
+# Authentication
+jsonwebtoken = "9"
+base64 = "0.22"
+bcrypt = "0.16"
+
+# Rate limiting
+tower_governor = "0.5"
+
+# URL validation
+url = "2.5"
+
+# Regex for validation
+regex = "1.11"
+
+# Async trait
+async-trait = "0.1"
+
 [dev-dependencies]
 tokio-test = "0.4"
 http-body-util = "0.1"
+axum-test = "17"
+mockall = "0.13"
+tempfile = "3"

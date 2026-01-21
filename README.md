@@ -4,7 +4,7 @@
 
 # rustLink
 
-A high-performance URL shortener built with Rust, featuring PostgreSQL persistence and Redis caching.
+A high-performance URL shortener built with Rust, featuring PostgreSQL persistence, Redis caching, and JWT authentication.
 
 ## Features
 
@@ -16,6 +16,9 @@ A high-performance URL shortener built with Rust, featuring PostgreSQL persisten
 - **Click Tracking**: Track click counts and last click time
 - **RESTful API**: Clean JSON API with CORS support
 - **CLI**: Easy-to-use command-line interface
+- **JWT Authentication**: Secure admin endpoints with JWT token authentication
+- **Rate Limiting**: Protect against abuse with configurable rate limiting
+- **Graceful Shutdown**: Handle SIGTERM/SIGINT signals properly
 
 ## Tech Stack
 
@@ -24,6 +27,8 @@ A high-performance URL shortener built with Rust, featuring PostgreSQL persisten
 - **[Redis](https://redis.io/)** - Optional caching layer
 - **[Tokio](https://tokio.rs/)** - Async runtime
 - **[Clap](https://github.com/clap-rs/clap)** - CLI argument parsing
+- **[jsonwebtoken](https://github.com/Keats/jsonwebtoken)** - JWT token authentication
+- **[bcrypt](https://github.com/Keats/bcrypt)** - Password hashing
 
 ## Prerequisites
 
@@ -87,7 +92,37 @@ cargo run -- admin ping-cache
 
 ## API Endpoints
 
+### Login (Get JWT Token)
+
+```http
+POST /login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "password123"
+}
+```
+
+Response:
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "username": "admin"
+}
+```
+
+**Note**: You need a JWT token to access admin endpoints (`/_stats`, `/_list`, `DELETE /{code}`). First, create a user in the database manually:
+
+```sql
+INSERT INTO users (username, password_hash) VALUES ('admin', '<bcrypt_hash_of_password>');
+```
+
+To generate a bcrypt hash, you can use an online tool or run: `echo -n "your_password" | bcrypt-cli`
+
 ### Create Short URL
+
+**Note**: Requires no authentication.
 
 ```http
 POST /
@@ -140,11 +175,19 @@ Response:
 
 ```http
 DELETE /{code}
+Authorization: Bearer <your_jwt_token>
 ```
 
 Returns `204 No Content` on success.
 
+**Requires**: JWT authentication token.
+
 ### Get Statistics
+
+```http
+GET /_stats
+Authorization: Bearer <your_jwt_token>
+```
 
 ```http
 GET /_stats
@@ -164,6 +207,7 @@ Response:
 
 ```http
 GET /_list?limit=50&offset=0
+Authorization: Bearer <your_jwt_token>
 ```
 
 Response:
@@ -191,12 +235,21 @@ Configuration is loaded from environment variables or `.env` file:
 | `DATABASE_URL` | PostgreSQL connection string | (required) |
 | `REDIS_URL` | Redis connection string | `redis://127.0.0.1:6379` |
 | `SHORT_CODE_LENGTH` | Auto-generated code length | `8` |
+| `SHORT_CODE_MAX_ATTEMPTS` | Max attempts to generate unique code | `10` |
 | `BASE_URL` | Base URL for short links | `http://localhost:3000` |
 | `DEFAULT_EXPIRY_HOURS` | Default URL expiry (hours) | `720` (30 days) |
+| `CACHE_ENABLED` | Enable/disable Redis caching | `true` |
+| `STRICT_URL_VALIDATION` | Use strict URL validation | `true` |
+| `JWT_SECRET` | Secret key for JWT tokens | (required for auth) |
+| `JWT_EXPIRATION_HOURS` | JWT token expiration (hours) | `24` |
+| `RATE_LIMIT_PER_MINUTE` | Rate limit for URL creation | `10` |
+| `RATE_LIMIT_BURST` | Rate limit burst size | `5` |
+| `ALLOWED_ORIGINS` | CORS allowed origins (comma-separated) | `*` |
 
 ## Database Schema
 
 ```sql
+-- URLs table
 CREATE TABLE urls (
     id BIGSERIAL PRIMARY KEY,
     short_code VARCHAR(16) UNIQUE NOT NULL,
@@ -210,9 +263,38 @@ CREATE TABLE urls (
 CREATE INDEX idx_urls_short_code ON urls(short_code);
 CREATE INDEX idx_urls_expires_at ON urls(expires_at) WHERE expires_at IS NOT NULL;
 CREATE INDEX idx_urls_click_count ON urls(click_count);
+
+-- Users table for authentication
+CREATE TABLE users (
+    id BIGSERIAL PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    is_active BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+CREATE INDEX idx_users_username ON users(username);
+CREATE INDEX idx_users_active ON users(is_active) WHERE is_active = TRUE;
 ```
 
 ## Development
+
+### Create Admin User
+
+Before using admin endpoints, create an admin user in the database:
+
+```sql
+INSERT INTO users (username, password_hash)
+VALUES ('admin', '$2b$12$...');
+```
+
+To generate a bcrypt password hash:
+
+```bash
+echo -n "your_password" | bcrypt-cli
+```
+
+Or use an online bcrypt generator.
 
 ### Run Tests
 

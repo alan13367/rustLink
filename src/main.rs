@@ -1,7 +1,9 @@
+mod auth;
 mod cache;
 mod config;
 mod db;
 mod error;
+mod middleware;
 mod models;
 mod routes;
 
@@ -14,6 +16,9 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 use tracing::{info, Level};
 use tracing_subscriber::EnvFilter;
+
+#[cfg(unix)]
+use tokio::signal::unix;
 
 /// rustLink - A high-performance URL shortener
 #[derive(Parser, Debug)]
@@ -86,6 +91,10 @@ async fn main() -> AppResult<()> {
             let port = port.unwrap_or(config.server.port);
             let addr = format!("{}:{}", host, port);
 
+            // Re-compute base_url after CLI overrides
+            let mut config = config;
+            config.url.base_url = format!("http://{}:{}", host, port);
+
             run_server(config, addr, migrate).await
         }
         Commands::Admin { admin_command } => match admin_command {
@@ -147,17 +156,19 @@ async fn run_server(
     }
 
     // Create application state
-    let base_url = config.url.base_url.clone();
     let state = Arc::new(routes::AppState {
         repository,
         cache,
-        base_url,
+        base_url: config.url.base_url.clone(),
         default_expiry_hours: config.url.default_expiry_hours,
         short_code_length: config.url.short_code_length,
+        short_code_max_attempts: config.url.short_code_max_attempts,
+        cache_enabled: config.url.cache_enabled,
+        strict_url_validation: config.url.strict_url_validation,
     });
 
     // Create router
-    let app = routes::create_router(state);
+    let app = routes::create_router(state, config.cors.allowed_origins);
 
     // Start server
     let listener = TcpListener::bind(&addr).await.map_err(|e| {
@@ -167,10 +178,39 @@ async fn run_server(
     info!("Server listening on {}", addr);
     info!("Base URL: {}", config.url.base_url);
 
+    // Set up graceful shutdown
+    let shutdown_signal = async {
+        let ctrl_c = async {
+            tokio::signal::ctrl_c()
+                .await
+                .expect("failed to install Ctrl+C handler");
+        };
+
+        #[cfg(unix)]
+        let terminate = async {
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                .expect("failed to install signal handler")
+                .recv()
+                .await;
+        };
+
+        #[cfg(unix)]
+        tokio::select! {
+            _ = ctrl_c => {},
+            _ = terminate => {},
+        }
+
+        #[cfg(not(unix))]
+        ctrl_c.await;
+    };
+
+    // Run server with graceful shutdown
     axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal)
         .await
         .map_err(|e| AppError::Internal(format!("Server error: {}", e)))?;
 
+    info!("Server shutdown complete");
     Ok(())
 }
 

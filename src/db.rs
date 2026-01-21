@@ -9,19 +9,22 @@ use std::str::FromStr;
 
 /// Database repository
 pub struct Repository {
-    pool: PgPool,
+    pub(crate) pool: PgPool,
 }
 
 impl Repository {
     /// Create a new repository with a connection pool
-    pub async fn new(database_url: &str, max_connections: u32, min_connections: u32) -> AppResult<Self> {
+    pub async fn new(
+        database_url: &str,
+        max_connections: u32,
+        _min_connections: u32,
+    ) -> AppResult<Self> {
         let options = PgConnectOptions::from_str(database_url)
             .map_err(|e| AppError::Configuration(format!("Invalid database URL: {}", e)))?
             .disable_statement_logging();
 
         let pool = PgPoolOptions::new()
             .max_connections(max_connections)
-            .min_connections(min_connections)
             .connect_with(options)
             .await?;
 
@@ -172,6 +175,7 @@ impl Repository {
                 COUNT(*) FILTER (WHERE expires_at IS NULL OR expires_at > NOW()) as active_urls,
                 COUNT(*) FILTER (WHERE expires_at IS NOT NULL AND expires_at <= NOW()) as expired_urls
             FROM urls
+            WHERE NOW() IS NOT NULL
             "#,
         )
         .fetch_one(&self.pool)

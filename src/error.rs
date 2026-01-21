@@ -43,6 +43,15 @@ pub enum AppError {
 
     #[error("Internal server error: {0}")]
     Internal(String),
+
+    #[error("Authentication failed: {0}")]
+    Unauthorized(String),
+
+    #[error("User not found: {0}")]
+    UserNotFound(String),
+
+    #[error("User already exists: {0}")]
+    UserExists(String),
 }
 
 /// Convert AppError to HTTP response
@@ -92,6 +101,18 @@ impl IntoResponse for AppError {
                     "SERIALIZATION_ERROR",
                 )
             }
+            AppError::Unauthorized(msg) => {
+                tracing::warn!("Unauthorized access: {}", msg);
+                (
+                    StatusCode::UNAUTHORIZED,
+                    format!("Unauthorized: {}", msg),
+                    "UNAUTHORIZED",
+                )
+            }
+            AppError::UserNotFound(_) => {
+                (StatusCode::NOT_FOUND, self.to_string(), "USER_NOT_FOUND")
+            }
+            AppError::UserExists(_) => (StatusCode::CONFLICT, self.to_string(), "USER_EXISTS"),
             _ => {
                 tracing::error!("Internal error: {}", self);
                 (

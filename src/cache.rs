@@ -87,6 +87,7 @@ impl Cache {
 
     /// Check if a short code exists in cache
     #[allow(dead_code)]
+    #[deprecated(note = "TODO: Use for analytics endpoint")]
     pub async fn exists(&self, short_code: &str) -> AppResult<bool> {
         let key = Self::url_key(short_code);
         let mut conn = self.pool.get().await?;
@@ -97,6 +98,7 @@ impl Cache {
 
     /// Set a custom TTL for a URL
     #[allow(dead_code)]
+    #[deprecated(note = "TODO: Use for premium URL features")]
     pub async fn set_expiry(&self, short_code: &str, ttl_seconds: u64) -> AppResult<()> {
         let key = Self::url_key(short_code);
         let ttl = ttl_seconds as i64;
@@ -109,15 +111,32 @@ impl Cache {
 
     /// Clear all cached URLs (use with caution)
     #[allow(dead_code)]
+    #[deprecated(note = "TODO: Use for admin maintenance endpoint")]
     pub async fn clear_all(&self) -> AppResult<()> {
         let pattern = format!("{}:*", Self::KEY_PREFIX);
         let mut conn = self.pool.get().await?;
 
-        // Get all keys matching the pattern
-        let keys: Vec<String> = redis::cmd("KEYS")
-            .arg(&pattern)
-            .query_async(&mut *conn)
-            .await?;
+        // Use SCAN instead of KEYS for better performance in production
+        let mut keys: Vec<String> = Vec::new();
+        let mut cursor: u64 = 0;
+
+        loop {
+            let (next_cursor, batch_keys): (u64, Vec<String>) = redis::cmd("SCAN")
+                .arg(cursor)
+                .arg("MATCH")
+                .arg(&pattern)
+                .arg("COUNT")
+                .arg(100)
+                .query_async(&mut *conn)
+                .await?;
+
+            keys.extend(batch_keys);
+
+            cursor = next_cursor;
+            if cursor == 0 {
+                break;
+            }
+        }
 
         if !keys.is_empty() {
             let _: () = conn.del(keys).await?;
@@ -128,6 +147,7 @@ impl Cache {
 
     /// Get cache statistics
     #[allow(dead_code)]
+    #[deprecated(note = "TODO: Use for health check endpoint")]
     pub async fn get_stats(&self) -> AppResult<CacheStats> {
         let mut conn = self.pool.get().await?;
 
@@ -154,6 +174,7 @@ impl Cache {
 /// Cache statistics
 #[derive(Debug)]
 #[allow(dead_code)]
+#[deprecated(note = "TODO: Use for health check endpoint")]
 pub struct CacheStats {
     pub keys: i64,
     pub status: String,
