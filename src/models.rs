@@ -65,29 +65,50 @@ impl From<UrlEntry> for UrlInfoResponse {
     }
 }
 
+/// Pagination metadata for list responses
+#[derive(Debug, Serialize)]
+pub struct PaginationMeta {
+    pub total: i64,
+    pub limit: i64,
+    pub offset: i64,
+    pub has_next: bool,
+    pub has_prev: bool,
+}
+
+impl PaginationMeta {
+    pub fn new(total: i64, limit: i64, offset: i64) -> Self {
+        let has_next = offset + limit < total;
+        let has_prev = offset > 0;
+        
+        Self {
+            total,
+            limit,
+            offset,
+            has_next,
+            has_prev,
+        }
+    }
+}
+
+/// Paginated response wrapper
+#[derive(Debug, Serialize)]
+pub struct PaginatedResponse<T> {
+    pub data: Vec<T>,
+    pub pagination: PaginationMeta,
+}
+
+impl<T> PaginatedResponse<T> {
+    pub fn new(data: Vec<T>, total: i64, limit: i64, offset: i64) -> Self {
+        let pagination = PaginationMeta::new(total, limit, offset);
+        Self { data, pagination }
+    }
+}
+
 /// Statistics summary
 #[derive(Debug, Serialize)]
-#[allow(dead_code)]
-#[deprecated(note = "TODO: Use for admin endpoint with filtering")]
 pub struct StatsResponse {
     pub total_urls: i64,
     pub total_clicks: i64,
     pub active_urls: i64,
     pub expired_urls: i64,
-}
-
-/// Error response
-#[derive(Debug, Serialize)]
-#[allow(dead_code)]
-#[deprecated(note = "TODO: Use for custom error formatting")]
-pub struct ErrorResponse {
-    pub error: String,
-    pub message: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[allow(dead_code)]
-#[deprecated(note = "TODO: Implement PUT /{code} endpoint for expiry updates")]
-pub struct UpdateExpiryRequest {
-    pub expiry_hours: i64,
 }

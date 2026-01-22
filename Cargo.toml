@@ -39,9 +39,13 @@ dotenvy = "0.15"
 
 # UUID generation
 nanoid = "0.4"
+uuid = { version = "1.11", features = ["v4", "serde"] }
 
 # Time handling
 chrono = { version = "0.4", features = ["serde"] }
+
+# Hash sets for rate limiting
+dashmap = "6.1"
 
 # Tracing/logging
 tracing = "0.1"

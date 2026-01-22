@@ -154,7 +154,7 @@ impl Config {
                 .collect()
         };
 
-        Ok(Config {
+        let config = Config {
             server: ServerConfig {
                 host: server_host,
                 port: server_port,
@@ -187,7 +187,82 @@ impl Config {
                 burst_size,
             },
             cors: CorsConfig { allowed_origins },
-        })
+        };
+
+        // Validate configuration
+        config.validate()?;
+
+        Ok(config)
+    }
+
+    /// Validate configuration values
+    pub fn validate(&self) -> AppResult<()> {
+        // Validate database settings
+        if self.database.min_connections > self.database.max_connections {
+            return Err(AppError::Configuration(
+                "DB_MIN_CONNECTIONS cannot be greater than DB_MAX_CONNECTIONS".to_string(),
+            ));
+        }
+
+        if self.database.acquire_timeout_seconds == 0 {
+            return Err(AppError::Configuration(
+                "DB_ACQUIRE_TIMEOUT_SECONDS must be greater than 0".to_string(),
+            ));
+        }
+
+        // Validate URL settings
+        if self.url.short_code_length < 4 || self.url.short_code_length > 16 {
+            return Err(AppError::Configuration(
+                "SHORT_CODE_LENGTH must be between 4 and 16".to_string(),
+            ));
+        }
+
+        if self.url.default_expiry_hours < 1 {
+            return Err(AppError::Configuration(
+                "DEFAULT_EXPIRY_HOURS must be at least 1".to_string(),
+            ));
+        }
+
+        if self.url.short_code_max_attempts < 1 || self.url.short_code_max_attempts > 100 {
+            return Err(AppError::Configuration(
+                "SHORT_CODE_MAX_ATTEMPTS must be between 1 and 100".to_string(),
+            ));
+        }
+
+        // Validate JWT settings
+        if self.auth.jwt_secret.len() < 32 {
+            return Err(AppError::Configuration(
+                "JWT_SECRET must be at least 32 characters for security".to_string(),
+            ));
+        }
+
+        if self.auth.jwt_expiration_hours < 1 {
+            return Err(AppError::Configuration(
+                "JWT_EXPIRATION_HOURS must be at least 1".to_string(),
+            ));
+        }
+
+        // Validate rate limiting settings
+        if self.rate_limit.requests_per_minute == 0 {
+            return Err(AppError::Configuration(
+                "RATE_LIMIT_PER_MINUTE must be greater than 0".to_string(),
+            ));
+        }
+
+        if self.rate_limit.burst_size == 0 {
+            return Err(AppError::Configuration(
+                "RATE_LIMIT_BURST must be greater than 0".to_string(),
+            ));
+        }
+
+        // Validate cache settings
+        if self.cache.default_ttl_seconds == 0 {
+            return Err(AppError::Configuration(
+                "CACHE_DEFAULT_TTL_SECONDS must be greater than 0".to_string(),
+            ));
+        }
+
+        Ok(())
     }
 }
 

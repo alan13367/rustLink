@@ -209,6 +209,19 @@ impl Repository {
 
         Ok(results)
     }
+
+    /// Count total number of URLs
+    pub async fn count_urls(&self) -> AppResult<i64> {
+        let count = sqlx::query_scalar::<_, i64>(
+            r#"
+            SELECT COUNT(*) FROM urls
+            "#,
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(count)
+    }
 }
 
 /// Statistics struct

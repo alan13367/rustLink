@@ -3,10 +3,14 @@ use crate::cache::Cache;
 use crate::config::RateLimitConfig;
 use crate::db::Repository;
 use crate::error::{AppError, AppResult};
-use crate::models::{CreateUrlRequest, CreateUrlResponse, UrlInfoResponse};
+use crate::middleware_impls::{
+    AuthAwareKeyExtractor, request_context_middleware, request_id_middleware,
+};
+use crate::models::{CreateUrlRequest, CreateUrlResponse, UrlInfoResponse, PaginatedResponse};
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
+    middleware,
     response::{IntoResponse, Json, Redirect},
     routing::{get, post, delete},
     Router,
@@ -17,7 +21,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
-use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
+use tower_governor::GovernorLayer;
 use tower_http::cors::{Any, CorsLayer};
 use url::Url as UrlParser;
 use validator::Validate;
@@ -141,30 +145,27 @@ pub async fn health_check(State(state): State<Arc<AppState>>) -> AppResult<impl 
     Ok(Json(response))
 }
 
-/// Create the application router
+/// Create application router
 pub fn create_router(state: Arc<AppState>, allowed_origins: Vec<String>, rate_limit_config: RateLimitConfig) -> Router {
-    // Configure rate limiting for sensitive endpoints
-    // Stricter limits for login and URL creation (rate_limit.requests_per_minute per minute)
-    let governor_conf_strict = Arc::new(
-        GovernorConfigBuilder::default()
+    // Configure rate limiting for sensitive endpoints (auth-aware)
+    let governor_layer_strict = GovernorLayer::new(
+        tower_governor::governor::GovernorConfigBuilder::default()
             .per_millisecond(60000 / rate_limit_config.requests_per_minute)
             .burst_size(rate_limit_config.burst_size)
+            .key_extractor(AuthAwareKeyExtractor)
             .finish()
-            .expect("Failed to build governor config"),
+            .expect("Failed to build strict governor config")
     );
 
-    let governor_layer_strict = GovernorLayer::new(governor_conf_strict.clone());
-
-    // More lenient limits for public endpoints (GET requests)
-    let governor_conf_lenient = Arc::new(
-        GovernorConfigBuilder::default()
+    // More lenient limits for public endpoints (auth-aware)
+    let governor_layer_lenient = GovernorLayer::new(
+        tower_governor::governor::GovernorConfigBuilder::default()
             .per_millisecond(60000 / (rate_limit_config.requests_per_minute * 2))
             .burst_size(rate_limit_config.burst_size * 2)
+            .key_extractor(AuthAwareKeyExtractor)
             .finish()
-            .expect("Failed to build governor config"),
+            .expect("Failed to build lenient governor config")
     );
-
-    let governor_layer_lenient = GovernorLayer::new(governor_conf_lenient.clone());
 
     // Configure CORS with specific origins
     let cors = if allowed_origins.iter().any(|o| o == "*") {
@@ -203,12 +204,16 @@ pub fn create_router(state: Arc<AppState>, allowed_origins: Vec<String>, rate_li
     let health_routes = Router::new()
         .route("/_health", get(health_check));
 
-    // Merge routers and apply CORS
-    sensitive_routes
+    // Merge routers and apply middleware layers
+    let app = sensitive_routes
         .merge(public_routes)
         .merge(health_routes)
         .layer(cors)
-        .with_state(state)
+        .layer(middleware::from_fn(request_id_middleware))
+        .layer(middleware::from_fn(request_context_middleware))
+        .with_state(state);
+    
+    app
 }
 
 /// Login to get JWT token
@@ -290,13 +295,13 @@ pub async fn create_url(
         )
         .filter(|&t| hours_from_now(t) >= 0); // Never store already-expired URLs
 
-    // Create the URL entry
+    // Create URL entry
     let entry = state
         .repository
         .create_url(&short_code, &payload.url, expires_at)
         .await?;
 
-    // Cache the new URL if enabled
+    // Cache new URL if enabled
     if state.cache_enabled {
         let _ = state.cache.set_url(&entry).await;
     }
@@ -347,7 +352,7 @@ pub async fn resolve_url(
     handle_url_resolution(&state, &entry).await
 }
 
-/// Handle the actual URL resolution (increment click count and redirect)
+/// Handle actual URL resolution (increment click count and redirect)
 async fn handle_url_resolution(
     state: &Arc<AppState>,
     entry: &crate::models::UrlEntry,
@@ -357,14 +362,14 @@ async fn handle_url_resolution(
     let code = entry.short_code.clone();
     let code_clone = code.clone();
 
-    // Increment click count asynchronously (don't block the redirect)
+    // Increment click count asynchronously (don't block redirect)
     tokio::spawn(async move {
         if let Err(e) = repo.increment_click_count(&code).await {
             tracing::error!("Failed to increment click count for {}: {:?}", code, e);
         }
     });
 
-    // Delete cache entry asynchronously
+    // Invalidate cache entry asynchronously
     if state.cache_enabled {
         tokio::spawn(async move {
             if let Err(e) = cache.delete_url(&code_clone).await {
@@ -428,11 +433,11 @@ pub async fn delete_url(
 
 /// Get global statistics (requires authentication)
 #[derive(Serialize)]
-struct StatsResponse {
-    total_urls: i64,
-    total_clicks: i64,
-    active_urls: i64,
-    expired_urls: i64,
+pub struct StatsResponse {
+    pub total_urls: i64,
+    pub total_clicks: i64,
+    pub active_urls: i64,
+    pub expired_urls: i64,
 }
 
 pub async fn get_stats(
@@ -463,9 +468,11 @@ pub async fn list_urls(
     let offset = query.offset.unwrap_or(0);
 
     let urls = state.repository.get_all_urls(limit, offset).await?;
+    let total = state.repository.count_urls().await?;
     let responses: Vec<UrlInfoResponse> = urls.into_iter().map(Into::into).collect();
 
-    Ok(Json(responses))
+    let paginated_response = PaginatedResponse::new(responses, total, limit, offset);
+    Ok(Json(paginated_response))
 }
 
 /// Generate a unique short code

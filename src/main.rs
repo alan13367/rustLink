@@ -4,6 +4,7 @@ mod config;
 mod db;
 mod error;
 mod middleware;
+mod middleware_impls;
 mod models;
 mod routes;
 
