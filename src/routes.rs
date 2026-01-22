@@ -7,7 +7,7 @@ use crate::jobs::JobSender;
 use crate::middleware_impls::{
     AuthAwareKeyExtractor, request_context_middleware, request_id_middleware,
 };
-use crate::models::{CreateUrlRequest, CreateUrlResponse, UrlInfoResponse, PaginatedResponse};
+use crate::models::{CreateUrlRequest, CreateUrlResponse, UrlInfoResponse, PaginatedResponse, StatsResponse};
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -427,14 +427,6 @@ pub async fn delete_url(
 }
 
 /// Get global statistics (requires authentication)
-#[derive(Serialize)]
-pub struct StatsResponse {
-    pub total_urls: i64,
-    pub total_clicks: i64,
-    pub active_urls: i64,
-    pub expired_urls: i64,
-}
-
 pub async fn get_stats(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
