@@ -3,6 +3,7 @@ mod cache;
 mod config;
 mod db;
 mod error;
+mod jobs;
 mod middleware;
 mod middleware_impls;
 mod models;
@@ -13,10 +14,11 @@ use crate::cache::Cache;
 use crate::config::Config;
 use crate::db::Repository;
 use crate::error::{AppError, AppResult};
+use crate::jobs::{create_job_channel, Worker};
 use clap::{Parser, Subcommand};
 use std::sync::Arc;
 use tokio::net::TcpListener;
-use tracing::{info, Level};
+use tracing::{error, info, Level};
 use tracing_subscriber::EnvFilter;
 
 #[cfg(unix)]
@@ -164,10 +166,18 @@ async fn run_server(
         config.auth.jwt_expiration_hours,
     );
 
+    // Create background job worker
+    let (job_sender, job_receiver) = create_job_channel();
+    let worker = Worker::new(repository.clone(), job_receiver);
+
+    // Start background worker in separate task
+    let worker_handle = tokio::spawn(worker.run());
+
     let state = Arc::new(routes::AppState {
         repository,
         cache,
         auth_service,
+        job_sender,
         base_url: config.url.base_url.clone(),
         default_expiry_hours: config.url.default_expiry_hours,
         short_code_length: config.url.short_code_length,
@@ -218,6 +228,11 @@ async fn run_server(
         .with_graceful_shutdown(shutdown_signal)
         .await
         .map_err(|e| AppError::Internal(format!("Server error: {}", e)))?;
+
+    // Wait for background worker to finish
+    worker_handle.await.unwrap_or_else(|e| {
+        error!("Worker task failed: {:?}", e);
+    });
 
     info!("Server shutdown complete");
     Ok(())

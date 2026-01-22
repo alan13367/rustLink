@@ -43,12 +43,18 @@ impl Cache {
         // Try to get connection with timeout, return None if Redis is unavailable
         let mut conn = match self.pool.get().await {
             Ok(c) => c,
-            Err(_) => return Ok(None),
+            Err(e) => {
+                tracing::warn!("Failed to get Redis connection for {}: {}", short_code, e);
+                return Ok(None);
+            }
         };
 
         let value: Option<String> = match conn.get(&key).await {
             Ok(v) => v,
-            Err(_) => return Ok(None), // Cache error treated as miss
+            Err(e) => {
+                tracing::warn!("Redis GET failed for {}: {}", key, e);
+                return Ok(None); // Cache error treated as miss
+            }
         };
 
         match value {

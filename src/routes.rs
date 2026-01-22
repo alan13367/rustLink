@@ -3,6 +3,7 @@ use crate::cache::Cache;
 use crate::config::RateLimitConfig;
 use crate::db::Repository;
 use crate::error::{AppError, AppResult};
+use crate::jobs::JobSender;
 use crate::middleware_impls::{
     AuthAwareKeyExtractor, request_context_middleware, request_id_middleware,
 };
@@ -52,6 +53,7 @@ pub struct AppState {
     pub repository: Repository,
     pub cache: Cache,
     pub auth_service: AuthService,
+    pub job_sender: JobSender,
     pub base_url: String,
     pub default_expiry_hours: i64,
     pub short_code_length: usize,
@@ -357,23 +359,16 @@ async fn handle_url_resolution(
     state: &Arc<AppState>,
     entry: &crate::models::UrlEntry,
 ) -> AppResult<Redirect> {
-    let repo = state.repository.clone();
-    let cache = state.cache.clone();
-    let code = entry.short_code.clone();
-    let code_clone = code.clone();
-
-    // Increment click count asynchronously (don't block redirect)
-    tokio::spawn(async move {
-        if let Err(e) = repo.increment_click_count(&code).await {
-            tracing::error!("Failed to increment click count for {}: {:?}", code, e);
-        }
-    });
+    // Submit click count increment job to worker
+    state.job_sender.increment_click_count(entry.short_code.clone());
 
     // Invalidate cache entry asynchronously
     if state.cache_enabled {
+        let cache = state.cache.clone();
+        let code = entry.short_code.clone();
         tokio::spawn(async move {
-            if let Err(e) = cache.delete_url(&code_clone).await {
-                tracing::error!("Failed to invalidate cache for {}: {:?}", code_clone, e);
+            if let Err(e) = cache.delete_url(&code).await {
+                tracing::error!("Failed to invalidate cache for {}: {:?}", code, e);
             }
         });
     }
