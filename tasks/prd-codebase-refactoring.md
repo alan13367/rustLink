@@ -110,22 +110,26 @@ The rustLink codebase has grown organically, resulting in several files that hav
 **Description:** As a developer, I want short code generation logic in a dedicated module so it's reusable and testable independently from HTTP handlers.
 
 **Acceptance Criteria:**
-- [ ] Create `src/services/` directory
-- [ ] Create `src/services/mod.rs`
-- [ ] Create `src/services/short_code.rs` with `ShortCodeService`
-- [ ] Move `generate_short_code()` function and alphabet constants to the service
-- [ ] Move `hours_from_now()` helper to appropriate utilities module
-- [ ] Add unit tests for short code generation
-- [ ] `cargo test` passes all tests
+- [x] Create `src/services/` directory
+- [x] Create `src/services/mod.rs`
+- [x] Create `src/services/short_code.rs` with `ShortCodeService`
+- [x] Move `generate_short_code()` function and alphabet constants to the service
+- [x] Move `hours_from_now()` helper to appropriate utilities module
+- [x] Add unit tests for short code generation
+- [x] `cargo test` passes all tests
+
+**Status:** ✅ Completed - Commit 49ef761
 
 ### US-009: Create utilities module for shared helpers
 **Description:** As a developer, I want a centralized utilities module for shared helper functions that don't belong in any specific domain module.
 
 **Acceptance Criteria:**
-- [ ] Create `src/util.rs` or `src/utils/` directory
-- [ ] Move generic helper functions from routes
-- [ ] Add documentation for each utility function
-- [ ] `cargo check` passes with no errors
+- [x] Create `src/util.rs` or `src/utils/` directory
+- [x] Move generic helper functions from routes
+- [x] Add documentation for each utility function
+- [x] `cargo check` passes with no errors
+
+**Status:** ✅ Completed - Commit bf02c9b
 
 ### US-010: Update CLAUDE.md with new file structure
 **Description:** As a developer, I want the documentation to reflect the new codebase organization so future contributors can understand the updated structure.

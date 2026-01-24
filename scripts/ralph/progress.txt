@@ -2,6 +2,38 @@
 Started: Sat Jan 24 12:45:08 CET 2026
 ---
 
+## [2025-01-24] - US-008
+- Extracted short code generation to dedicated service
+- Created src/services/ directory
+- Created src/services/short_code.rs with ShortCodeService
+- Moved generate_short_code() function and alphabet constants to the service
+- Updated url_handlers.rs to use ShortCodeService::generate_short_code()
+- Added unit tests for short code service (alphabet constant validation)
+- cargo test passes all tests (now 17 tests)
+
+**Learnings for future iterations:**
+- Services layer is a good pattern for business logic that needs to be reusable across handlers
+- Using a struct with static methods (ShortCodeService) provides a clean API without needing state
+- Re-exporting services from helpers.rs maintains backward compatibility for imports
+
+---
+
+## [2025-01-24] - US-009
+- Created utilities module for shared helpers
+- Created src/util.rs module for general-purpose utility functions
+- Moved hours_from_now() helper to util.rs with comprehensive documentation
+- Updated routes/helpers.rs to re-export hours_from_now from util module
+- Added unit tests for utility functions
+- cargo test passes all tests
+
+**Learnings for future iterations:**
+- Utilities module should contain only truly generic functions that don't belong to any specific domain
+- Documentation with examples is valuable for utility functions that may be used across the codebase
+- Re-exports from module-specific helpers (like routes/helpers.rs) provide convenience while keeping utilities in a central location
+
+---
+
+
 ## [2025-01-24] - US-006
 - Refactored config.rs into focused submodules
 - Created src/config/ directory with modular structure
