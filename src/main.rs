@@ -9,6 +9,7 @@ mod middleware_impls;
 mod models;
 mod routes;
 mod state;
+mod util;
 
 use crate::auth::AuthService;
 use crate::cache::Cache;

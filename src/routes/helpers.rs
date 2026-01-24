@@ -2,6 +2,9 @@ use crate::auth::AuthService;
 use crate::db::Repository;
 use crate::error::{AppError, AppResult};
 
+// Re-export hours_from_now from util module for convenience
+pub use crate::util::hours_from_now;
+
 /// Helper to extract JWT claims from Authorization header
 pub(crate) fn extract_claims(
     headers: &axum::http::HeaderMap,
@@ -48,27 +51,4 @@ pub(crate) async fn generate_short_code(
     }
 
     Err(AppError::ShortCodeGenerationFailed)
-}
-
-/// Calculate hours from now until a given datetime
-pub(crate) fn hours_from_now(dt: chrono::DateTime<chrono::Utc>) -> i64 {
-    let now = chrono::Utc::now();
-    let duration = dt.signed_duration_since(now);
-    duration.num_hours()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use chrono::Duration;
-
-    #[test]
-    fn test_hours_from_now() {
-        let now = chrono::Utc::now();
-        let future = now + Duration::hours(24);
-        assert!(hours_from_now(future) > 20);
-
-        let past = now - Duration::hours(24);
-        assert!(hours_from_now(past) < -20);
-    }
 }
