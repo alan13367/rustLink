@@ -8,6 +8,7 @@ mod middleware;
 mod middleware_impls;
 mod models;
 mod routes;
+mod state;
 
 use crate::auth::AuthService;
 use crate::cache::Cache;
@@ -173,7 +174,7 @@ async fn run_server(
     // Start background worker in separate task
     let worker_handle = tokio::spawn(worker.run());
 
-    let state = Arc::new(routes::AppState {
+    let state = Arc::new(state::AppState {
         repository,
         cache,
         auth_service,
