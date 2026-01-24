@@ -1,3 +1,23 @@
 # Ralph Progress Log
 Started: Sat Jan 24 12:45:08 CET 2026
 ---
+
+## [2025-01-24] - US-001
+- Reorganized routes module into subdirectories (src/routes/)
+- Split routes.rs (510 lines) into focused files:
+  - mod.rs (99 lines) - Module exports, AppState, helper functions
+  - handlers.rs (258 lines) - HTTP request handlers
+  - health.rs (71 lines) - Health check endpoint
+  - router.rs (86 lines) - Router creation and middleware configuration
+  - types.rs (24 lines) - Route-specific types
+- All imports and module declarations resolve correctly
+- cargo check, cargo test, and cargo clippy all pass
+
+**Learnings for future iterations:**
+- Rust treats `mod routes;` as a module directory if `routes/` exists with `mod.rs`, or as a file `routes.rs` if that exists instead
+- When splitting modules, move helper functions that are used by multiple sub-modules to the parent `mod.rs` to avoid circular dependencies
+- Use `pub(crate)` for items only needed within the crate and `pub` for external visibility
+- The module system requires explicit re-exports (`pub use`) for items that need to be accessible from outside the module
+- Unused imports can be cleaned up incrementally - compile first, then fix warnings
+
+---
