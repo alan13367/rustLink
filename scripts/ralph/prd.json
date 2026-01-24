@@ -49,7 +49,7 @@
       "title": "Extract server startup logic from main.rs",
       "description": "As a developer, I want server startup logic in a separate module so main.rs focuses only on CLI parsing and application entry.",
       "priority": 7,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-008",

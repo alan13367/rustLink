@@ -98,13 +98,15 @@ The rustLink codebase has grown organically, resulting in several files that hav
 **Description:** As a developer, I want server startup logic in a separate module so `main.rs` focuses only on CLI parsing and application entry.
 
 **Acceptance Criteria:**
-- [ ] Create `src/server.rs` module
-- [ ] Move server startup logic to `server.rs`
-- [ ] Move graceful shutdown handling to `server.rs`
-- [ ] Move worker spawning logic to `server.rs`
-- [ ] `main.rs` contains only CLI parsing and minimal orchestration
-- [ ] `cargo check` passes with no errors
-- [ ] Server starts and stops correctly with `cargo run -- server`
+- [x] Create `src/server.rs` module
+- [x] Move server startup logic to `server.rs`
+- [x] Move graceful shutdown handling to `server.rs`
+- [x] Move worker spawning logic to `server.rs`
+- [x] `main.rs` contains only CLI parsing and minimal orchestration
+- [x] `cargo check` passes with no errors
+- [x] Server starts and stops correctly with `cargo run -- server`
+
+**Status:** ✅ Completed - Commit 1914474
 
 ### US-008: Extract short code generation to dedicated service
 **Description:** As a developer, I want short code generation logic in a dedicated module so it's reusable and testable independently from HTTP handlers.

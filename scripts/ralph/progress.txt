@@ -107,3 +107,26 @@ Started: Sat Jan 24 12:45:08 CET 2026
 - Unused imports can be cleaned up incrementally - compile first, then fix warnings
 
 ---
+
+## [2025-01-24] - US-007
+- Extracted server startup logic from main.rs to dedicated server module
+- Created src/server.rs (121 lines) with:
+  - run_server() function for server startup
+  - create_shutdown_signal() helper for graceful shutdown
+  - Comprehensive documentation for all functions
+- Created src/admin.rs (104 lines) with:
+  - AdminCommands enum (moved from main.rs)
+  - run() function to dispatch admin commands
+  - Individual command handlers (clean_expired, migrate, stats, ping_cache)
+- Simplified main.rs from 320+ lines to 90 lines
+- main.rs now only handles CLI parsing, config loading, and command dispatch
+- All imports and module declarations resolve correctly
+- cargo check and cargo test pass (17 tests)
+- Created scripts/ralph/prd.json as JSON version of PRD for Ralph tool
+
+**Learnings for future iterations:**
+- Extracting both server startup AND admin commands from main.rs keeps it focused on CLI entry point only
+- The admin module pattern (enum + run() function + individual handlers) works well for CLI subcommands
+- Graceful shutdown signal handling should be in its own helper function (create_shutdown_signal) for clarity
+- When extracting types (like AdminCommands), move them to the module that uses them to keep related code together
+---
