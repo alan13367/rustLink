@@ -37,13 +37,35 @@ A high-performance URL shortener built with Rust, using:
 |------|---------|
 | `src/main.rs` | CLI entry point - parses `server` and `admin` subcommands |
 | `src/error.rs` | `AppError` enum with `thiserror` - converts to HTTP responses |
-| `src/config.rs` | `Config` struct loaded from environment variables |
 | `src/models.rs` | `UrlEntry`, request/response DTOs |
 | `src/db.rs` | `Repository` - SQLx database operations |
 | `src/cache.rs` | `Cache` - Redis wrapper with connection pooling |
 | `src/auth.rs` | JWT authentication service (token generation/validation) |
 | `src/middleware.rs` | User repository extension for authentication |
-| `src/routes.rs` | Axum handlers and `AppState` definition |
+| `src/state.rs` | `AppState` definition with documentation |
+| `src/util.rs` | General-purpose utility functions |
+| `src/jobs.rs` | Background job processing (click count increments, cache invalidation) |
+| **src/config/** | Configuration module with submodules: |
+| ├─ `mod.rs` | Main `Config` struct and `from_env()` loader |
+| ├─ `server.rs` | `ServerConfig` (host, port) |
+| ├─ `database.rs` | `DatabaseConfig` (URL, connection pool settings) |
+| ├─ `cache.rs` | `CacheConfig` (Redis URL, TTL) |
+| ├─ `rate_limit.rs` | `RateLimitConfig` (requests per minute, burst size) |
+| ├─ `url.rs` | `UrlConfig` (short code length, expiry, validation) |
+| ├─ `auth.rs` | `AuthConfig` (JWT settings) |
+| └─ `cors.rs` | `CorsConfig` (allowed origins) |
+| **src/routes/** | HTTP handlers and routing: |
+| ├─ `mod.rs` | Module exports and `AppState` re-export |
+| ├─ `router.rs` | Router creation, middleware setup, rate limiting |
+| ├─ `url_handlers.rs` | URL create/resolve/info endpoints |
+| ├─ `auth_handlers.rs` | Login endpoint |
+| ├─ `admin_handlers.rs` | Stats, list, delete endpoints (requires auth) |
+| ├─ `health.rs` | Health check endpoint |
+| ├─ `helpers.rs` | Shared handler utilities (auth claims extraction) |
+| └─ `types.rs` | Route-specific request/response types |
+| **src/services/** | Business logic services: |
+| ├─ `mod.rs` | Service module exports |
+| └─ `short_code.rs` | `ShortCodeService` (short code generation) |
 
 ## CLI Commands
 
@@ -156,7 +178,7 @@ pub enum AppError {
 
 ## Short Code Generation
 
-Uses `nanoid!` macro with alphanumeric alphabet (62 characters). Retries up to 10 times on collision.
+Uses `nanoid!` macro with alphanumeric alphabet (62 characters). Implemented in `ShortCodeService`. Retries up to 10 times on collision.
 
 ## Caching Strategy
 
@@ -186,13 +208,14 @@ Uses `nanoid!` macro with alphanumeric alphabet (62 characters). Retries up to 1
 
 ## State Management
 
-`AppState` is wrapped in `Arc` for sharing across request handlers:
+`AppState` is defined in `src/state.rs` and wrapped in `Arc` for sharing across request handlers:
 
 ```rust
 pub struct AppState {
     pub repository: Repository,  // Cloneable (PgPool is Arc internally)
     pub cache: Cache,            // Cloneable (Pool is Arc internally)
     pub auth_service: AuthService, // JWT token generation/validation
+    pub job_sender: JobSender,   // Background job channel
     pub base_url: String,
     pub default_expiry_hours: i64,
     pub short_code_length: usize,
@@ -204,10 +227,11 @@ pub struct AppState {
 
 ## Adding New Features
 
-1. **New route**: Add handler in `routes.rs`, register in `create_router()`
+1. **New route**: Add handler in appropriate `src/routes/*_handlers.rs`, register in `src/routes/router.rs`
 2. **New DB query**: Add method to `Repository` in `db.rs`
-3. **New config**: Add field to `Config` struct, load from env in `from_env()`
-4. **New CLI command**: Add variant to `Commands` or `AdminCommands` enum
+3. **New config**: Add field to appropriate config submodule, load from env in `config/mod.rs::from_env()`
+4. **New CLI command**: Add variant to `Commands` or `AdminCommands` enum in `main.rs`
+5. **New service**: Create module in `src/services/`
 
 ## Testing Notes
 
@@ -248,4 +272,3 @@ pub struct AppState {
 > - [ ] README.md if user-facing features changed
 >
 > This ensures the documentation remains an accurate reference for future development.
-
