@@ -2,6 +2,24 @@
 Started: Sat Jan 24 12:45:08 CET 2026
 ---
 
+## [2025-01-24] - US-002
+- Extracted route handlers into separate modules by domain
+- Created domain-based handler modules:
+  - url_handlers.rs (172 lines) - URL create, resolve, info endpoints
+  - auth_handlers.rs (35 lines) - Login endpoint
+  - admin_handlers.rs (67 lines) - Stats, list, delete endpoints
+  - helpers.rs (74 lines) - Shared helper functions (extract_claims, generate_short_code, hours_from_now)
+- Updated router.rs to reference the new handler modules
+- All handlers maintain existing function signatures and behavior
+- cargo check and cargo test pass
+
+**Learnings for future iterations:**
+- Organize handlers by domain (url, auth, admin) rather than by HTTP method for better discoverability
+- Extract shared helpers to avoid code duplication across handler modules
+- The `AppError` import was initially forgotten in admin_handlers.rs - always check imports when splitting files
+- Router configuration becomes cleaner when it references domain modules rather than individual handler functions
+
+---
 ## [2025-01-24] - US-001
 - Reorganized routes module into subdirectories (src/routes/)
 - Split routes.rs (510 lines) into focused files:

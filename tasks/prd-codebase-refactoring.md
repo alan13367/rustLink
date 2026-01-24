@@ -32,35 +32,41 @@ The rustLink codebase has grown organically, resulting in several files that hav
 **Description:** As a developer, I want route handlers grouped by domain (url, auth, admin) so I can quickly locate the code for a specific endpoint.
 
 **Acceptance Criteria:**
-- [ ] Create `src/routes/url_handlers.rs` for URL-related endpoints (create, resolve, info)
-- [ ] Create `src/routes/auth_handlers.rs` for authentication endpoints (login)
-- [ ] Create `src/routes/admin_handlers.rs` for admin-only endpoints (stats, list, delete)
-- [ ] Move health check logic to `src/routes/health.rs`
-- [ ] Extract shared helper functions to `src/routes/helpers.rs`
-- [ ] All handlers maintain existing function signatures and behavior
-- [ ] `cargo check` passes with no errors
-- [ ] `cargo test` passes all existing tests
+- [x] Create `src/routes/url_handlers.rs` for URL-related endpoints (create, resolve, info)
+- [x] Create `src/routes/auth_handlers.rs` for authentication endpoints (login)
+- [x] Create `src/routes/admin_handlers.rs` for admin-only endpoints (stats, list, delete)
+- [x] Move health check logic to `src/routes/health.rs`
+- [x] Extract shared helper functions to `src/routes/helpers.rs`
+- [x] All handlers maintain existing function signatures and behavior
+- [x] `cargo check` passes with no errors
+- [x] `cargo test` passes all existing tests
+
+**Status:** ✅ Completed - Commit bf19d46
 
 ### US-003: Extract router configuration into separate module
 **Description:** As a developer, I want router setup (rate limiting, CORS, middleware) in a dedicated module so changes to routing don't require scrolling through handler code.
 
 **Acceptance Criteria:**
-- [ ] Create `src/routes/router.rs` with `create_router()` function
-- [ ] Move rate limiting configuration to `router.rs`
-- [ ] Move CORS configuration to `router.rs`
-- [ ] Middleware stack configuration consolidated in `router.rs`
-- [ ] Router structure uses clear separation (sensitive, public, health route groups)
-- [ ] `cargo check` passes with no errors
+- [x] Create `src/routes/router.rs` with `create_router()` function
+- [x] Move rate limiting configuration to `router.rs`
+- [x] Move CORS configuration to `router.rs`
+- [x] Middleware stack configuration consolidated in `router.rs`
+- [x] Router structure uses clear separation (sensitive, public, health route groups)
+- [x] `cargo check` passes with no errors
+
+**Status:** ✅ Completed - Commit b4731cf (accomplished as part of US-001)
 
 ### US-004: Extract route-specific types and responses
 **Description:** As a developer, I want request/response types specific to routes in a separate module so the type definitions don't clutter the handler code.
 
 **Acceptance Criteria:**
-- [ ] Create `src/routes/types.rs` for route-specific structs
-- [ ] Move `ListUrlsQuery`, `HealthCheckResponse`, `HealthStatus` to `types.rs`
-- [ ] Re-export commonly used types from `routes::mod.rs`
-- [ ] All existing code that uses these types continues to work
-- [ ] `cargo check` passes with no errors
+- [x] Create `src/routes/types.rs` for route-specific structs
+- [x] Move `ListUrlsQuery`, `HealthCheckResponse`, `HealthStatus` to `types.rs`
+- [x] Re-export commonly used types from `routes::mod.rs`
+- [x] All existing code that uses these types continues to work
+- [x] `cargo check` passes with no errors
+
+**Status:** ✅ Completed - Commit b4731cf (accomplished as part of US-001)
 
 ### US-005: Move AppState to dedicated state module
 **Description:** As a developer, I want application state management in a dedicated module so the shared state structure is clearly documented and easy to modify.
