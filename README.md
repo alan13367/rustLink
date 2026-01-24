@@ -32,13 +32,60 @@ A high-performance URL shortener built with Rust, featuring PostgreSQL persisten
 - **[bcrypt](https://github.com/Keats/bcrypt)** - Password hashing
 - **[tower_governor](https://github.com/benwis/tower-governor)** - Rate limiting middleware
 
-## Prerequisites
+## Quick Start (Docker Compose)
+
+The fastest way to get started is using Docker Compose:
+
+1. Clone the repository:
+```bash
+git clone https://github.com/alan13367/rustlink.git
+cd rustlink
+```
+
+2. Start the services (PostgreSQL, Redis, pgAdmin):
+```bash
+docker-compose up -d
+```
+
+3. Run migrations:
+```bash
+cargo run -- admin migrate
+```
+
+4. Start the server:
+```bash
+cargo run -- server
+```
+
+5. Test it:
+```bash
+# Health check
+curl http://localhost:3000/_health
+
+# Create a short URL
+curl -X POST http://localhost:3000/ \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://www.rust-lang.org/"}'
+```
+
+**pgAdmin** is available at http://localhost:5050
+- Email: `admin@rustlink.dev`
+- Password: `admin`
+
+---
+
+## Manual Installation
+
+If you prefer to install services manually:
+
+### Prerequisites
 
 - Rust 1.80+
 - PostgreSQL 14+
 - Redis (optional - server will run without it)
+- Docker & Docker Compose (for pgAdmin)
 
-## Installation
+### Installation Steps
 
 1. Clone the repository:
 ```bash
