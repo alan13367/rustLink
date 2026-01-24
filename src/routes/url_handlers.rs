@@ -1,8 +1,7 @@
-use crate::auth::{LoginRequest, LoginResponse};
 use crate::error::{AppError, AppResult};
-use crate::models::{CreateUrlRequest, CreateUrlResponse, UrlInfoResponse, PaginatedResponse, StatsResponse};
-use axum::extract::{Path, Query, State};
-use axum::http::{StatusCode, HeaderMap};
+use crate::models::{CreateUrlRequest, CreateUrlResponse, UrlInfoResponse};
+use axum::extract::{Path, State};
+use axum::http::StatusCode;
 use axum::response::{IntoResponse, Json, Redirect};
 use chrono::{Duration, Utc};
 use regex::Regex;
@@ -10,36 +9,8 @@ use std::sync::Arc;
 use validator::Validate;
 use url::Url as UrlParser;
 
-use super::{AppState, generate_short_code, hours_from_now, extract_claims};
-use super::types::ListUrlsQuery;
-
-/// Login to get JWT token
-pub async fn login(
-    State(state): State<Arc<AppState>>,
-    Json(payload): Json<LoginRequest>,
-) -> AppResult<impl IntoResponse> {
-    let user = state
-        .repository
-        .get_user_by_username(&payload.username)
-        .await?
-        .ok_or(AppError::UserNotFound(payload.username.clone()))?;
-
-    // Verify password
-    bcrypt::verify(&payload.password, &user.password_hash)
-        .map_err(|e| AppError::Internal(format!("Password verification failed: {}", e)))?;
-
-    if !user.is_active {
-        return Err(AppError::Unauthorized("User account is inactive".to_string()));
-    }
-
-    // Generate JWT token using auth service from state
-    let token = state.auth_service.generate_token(&user.id.to_string(), &user.username)?;
-
-    Ok(Json(LoginResponse {
-        token,
-        username: user.username,
-    }))
-}
+use super::AppState;
+use super::helpers::{generate_short_code, hours_from_now};
 
 /// Create a short URL
 pub async fn create_url(
@@ -198,61 +169,4 @@ pub async fn get_url_info(
 
     let response = UrlInfoResponse::from(entry);
     Ok(Json(response))
-}
-
-/// Delete a short URL (requires authentication)
-pub async fn delete_url(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-    Path(code): Path<String>,
-) -> AppResult<impl IntoResponse> {
-    let _claims = extract_claims(&headers, &state.auth_service)?;
-    let deleted = state.repository.delete_url(&code).await?;
-
-    if !deleted {
-        return Err(AppError::UrlNotFound(code));
-    }
-
-    // Also remove from cache if enabled
-    if state.cache_enabled {
-        let _ = state.cache.delete_url(&code).await;
-    }
-
-    Ok(StatusCode::NO_CONTENT)
-}
-
-/// Get global statistics (requires authentication)
-pub async fn get_stats(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-) -> AppResult<impl IntoResponse> {
-    let _claims = extract_claims(&headers, &state.auth_service)?;
-    let stats = state.repository.get_stats().await?;
-
-    let response = StatsResponse {
-        total_urls: stats.total_urls,
-        total_clicks: stats.total_clicks,
-        active_urls: stats.active_urls,
-        expired_urls: stats.expired_urls,
-    };
-
-    Ok(Json(response))
-}
-
-/// List all URLs (paginated, requires authentication)
-pub async fn list_urls(
-    State(state): State<Arc<AppState>>,
-    Query(query): Query<ListUrlsQuery>,
-    headers: HeaderMap,
-) -> AppResult<impl IntoResponse> {
-    let _claims = extract_claims(&headers, &state.auth_service)?;
-    let limit = query.limit.unwrap_or(50).min(100); // Max 100
-    let offset = query.offset.unwrap_or(0);
-
-    let urls = state.repository.get_all_urls(limit, offset).await?;
-    let total = state.repository.count_urls().await?;
-    let responses: Vec<UrlInfoResponse> = urls.into_iter().map(Into::into).collect();
-
-    let paginated_response = PaginatedResponse::new(responses, total, limit, offset);
-    Ok(Json(paginated_response))
 }

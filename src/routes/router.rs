@@ -6,8 +6,10 @@ use std::sync::Arc;
 use tower_governor::GovernorLayer;
 use tower_http::cors::{Any, CorsLayer};
 
-use super::handlers;
+use super::admin_handlers;
+use super::auth_handlers;
 use super::health;
+use super::url_handlers;
 use super::AppState;
 
 /// Create application router
@@ -58,17 +60,17 @@ pub fn create_router(
     // Build router with rate limiting using merge
     // Strict rate limit for sensitive endpoints (POST /, POST /login, DELETE /{code}, /_stats, /_list)
     let sensitive_routes = axum::Router::new()
-        .route("/", post(handlers::create_url))
-        .route("/login", post(handlers::login))
-        .route("/{code}", delete(handlers::delete_url))
-        .route("/_stats", get(handlers::get_stats))
-        .route("/_list", get(handlers::list_urls))
+        .route("/", post(url_handlers::create_url))
+        .route("/login", post(auth_handlers::login))
+        .route("/{code}", delete(admin_handlers::delete_url))
+        .route("/_stats", get(admin_handlers::get_stats))
+        .route("/_list", get(admin_handlers::list_urls))
         .layer(governor_layer_strict);
 
     // Lenient rate limit for public endpoints (GET /{code}, GET /{code}/info)
     let public_routes = axum::Router::new()
-        .route("/{code}", get(handlers::resolve_url))
-        .route("/{code}/info", get(handlers::get_url_info))
+        .route("/{code}", get(url_handlers::resolve_url))
+        .route("/{code}/info", get(url_handlers::get_url_info))
         .layer(governor_layer_lenient);
 
     // Health check endpoint (no rate limiting)
