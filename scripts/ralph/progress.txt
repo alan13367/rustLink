@@ -2,6 +2,20 @@
 Started: Sat Jan 24 12:45:08 CET 2026
 ---
 
+## [2025-01-24] - US-005
+- Moved AppState to dedicated state module
+- Created src/state.rs (46 lines) with AppState struct
+- Added comprehensive documentation comments to all AppState fields
+- Updated main.rs to use state::AppState instead of routes::AppState
+- Updated routes/mod.rs to re-export AppState for convenience
+- cargo check and cargo test pass
+
+**Learnings for future iterations:**
+- When moving types between modules, consider adding re-exports in the original location for backward compatibility
+- Documentation comments (///) are important for public structures that are used across the codebase
+- The state module is a good pattern for shared application state in Axum applications
+
+---
 ## [2025-01-24] - US-002
 - Extracted route handlers into separate modules by domain
 - Created domain-based handler modules:
