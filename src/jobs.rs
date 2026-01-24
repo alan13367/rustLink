@@ -8,6 +8,7 @@ pub enum Job {
     /// Increment click count for a URL
     IncrementClickCount { short_code: String },
     /// Delete cache entry for a URL
+    #[allow(dead_code)]
     InvalidateCache { short_code: String },
 }
 
@@ -47,6 +48,7 @@ impl Worker {
     }
 
     /// Set worker configuration
+    #[allow(dead_code)]
     pub fn with_config(mut self, config: WorkerConfig) -> Self {
         self.config = config;
         self
@@ -137,6 +139,7 @@ impl JobSender {
     }
 
     /// Submit an invalidate cache job
+    #[allow(dead_code)]
     pub fn invalidate_cache(&self, short_code: String) {
         self.send(Job::InvalidateCache { short_code });
     }

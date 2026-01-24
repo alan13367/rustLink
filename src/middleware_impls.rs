@@ -13,10 +13,12 @@ use uuid::Uuid;
 pub struct RequestId(pub String);
 
 impl RequestId {
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self(Uuid::new_v4().to_string())
     }
 
+    #[allow(dead_code)]
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -30,6 +32,7 @@ impl From<String> for RequestId {
 
 /// Request context containing request metadata
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct RequestContext {
     pub request_id: String,
     pub client_ip: String,
@@ -47,6 +50,7 @@ impl RequestContext {
         }
     }
 
+    #[allow(dead_code)]
     pub fn with_user(mut self, user_id: String) -> Self {
         self.user_id = Some(user_id);
         self
