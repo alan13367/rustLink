@@ -80,8 +80,11 @@ pub fn create_router(
         .route("/{code}/info", get(url_handlers::get_url_info))
         .layer(governor_layer_lenient);
 
-    // Health check endpoint (no rate limiting)
-    let health_routes = axum::Router::new().route("/_health", get(health::health_check));
+    // Health check and documentation endpoints (no rate limiting)
+    let health_routes = axum::Router::new()
+        .route("/_health", get(health::health_check))
+        .route("/_openapi", get(health::openapi_spec))
+        .route("/_docs", get(health::swagger_ui));
 
     // Merge routers and apply middleware layers
     Ok(sensitive_routes

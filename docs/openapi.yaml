@@ -68,7 +68,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /{code}:
+  "/{code}":
     get:
       summary: Resolve short URL
       description: Redirect to the original URL
@@ -118,7 +118,7 @@ paths:
         '404':
           description: Short code not found
 
-  /{code}/info:
+  "/{code}/info":
     get:
       summary: Get URL info
       description: Get metadata about a shortened URL
@@ -228,7 +228,7 @@ components:
           type: string
           format: uri
           description: The URL to shorten
-          example: https://example.com/very/long/path
+          example: "https://example.com/very/long/path"
         expiry_hours:
           type: integer
           minimum: 1
@@ -253,11 +253,11 @@ components:
         short_url:
           type: string
           description: Full short URL for sharing
-          example: http://localhost:3000/abc123XY
+          example: "http://localhost:3000/abc123XY"
         original_url:
           type: string
           description: The original URL
-          example: https://example.com/very/long/path
+          example: "https://example.com/very/long/path"
         expires_at:
           type: string
           format: date-time
@@ -272,7 +272,7 @@ components:
           example: abc123XY
         original_url:
           type: string
-          example: https://example.com
+          example: "https://example.com"
         created_at:
           type: string
           format: date-time
@@ -308,7 +308,7 @@ components:
         token:
           type: string
           description: JWT token for authentication
-          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
         username:
           type: string
           example: admin
@@ -410,4 +410,4 @@ components:
         message:
           type: string
           description: Human-readable error message
-          example: URL not found: abc123
+          example: "URL not found: abc123"

@@ -336,6 +336,8 @@ The API uses IP-based rate limiting to prevent abuse:
 
 - **No rate limiting**:
   - `GET /_health` - Health monitoring
+  - `GET /_openapi` - OpenAPI documentation
+  - `GET /_docs` - Swagger UI documentation
 
 Rate limiting is implemented using `tower_governor` with IP-based key extraction.
 

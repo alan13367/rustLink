@@ -1,12 +1,16 @@
 use crate::error::AppResult;
 use crate::routes::types::{HealthCheckResponse, HealthStatus};
 use axum::extract::State;
+use axum::http::{header, StatusCode};
 use axum::response::IntoResponse;
 use axum::Json;
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
 
 use super::AppState;
+
+/// OpenAPI specification as a constant
+const OPENAPI_SPEC: &str = include_str!("../../docs/openapi.yaml");
 
 /// Health check endpoint
 pub async fn health_check(State(state): State<Arc<AppState>>) -> AppResult<impl IntoResponse> {
@@ -34,24 +38,20 @@ pub async fn health_check(State(state): State<Arc<AppState>>) -> AppResult<impl 
 
     // Check cache connectivity
     let cache_start = std::time::Instant::now();
-    let cache_health = match tokio::time::timeout(
-        StdDuration::from_secs(5),
-        state.cache.ping(),
-    )
-    .await
-    {
-        Ok(Ok(_)) => {
-            let latency = cache_start.elapsed().as_millis() as u64;
-            HealthStatus {
-                status: "healthy".to_string(),
-                latency_ms: Some(latency),
+    let cache_health =
+        match tokio::time::timeout(StdDuration::from_secs(5), state.cache.ping()).await {
+            Ok(Ok(_)) => {
+                let latency = cache_start.elapsed().as_millis() as u64;
+                HealthStatus {
+                    status: "healthy".to_string(),
+                    latency_ms: Some(latency),
+                }
             }
-        }
-        Ok(Err(_)) | Err(_) => HealthStatus {
-            status: "unhealthy".to_string(),
-            latency_ms: None,
-        },
-    };
+            Ok(Err(_)) | Err(_) => HealthStatus {
+                status: "unhealthy".to_string(),
+                latency_ms: None,
+            },
+        };
 
     // Determine overall health
     let overall_status = if db_health.status == "healthy" {
@@ -68,4 +68,29 @@ pub async fn health_check(State(state): State<Arc<AppState>>) -> AppResult<impl 
     };
 
     Ok(Json(response))
+}
+
+/// OpenAPI specification as a constant
+const SWAGGER_UI_HTML: &str = include_str!("../../docs/swagger-ui.html");
+
+/// OpenAPI specification endpoint
+///
+/// Returns the OpenAPI 3.0 specification in YAML format.
+pub async fn openapi_spec() -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        [(header::CONTENT_TYPE, "application/x-yaml")],
+        OPENAPI_SPEC,
+    )
+}
+
+/// Swagger UI endpoint
+///
+/// Returns an interactive HTML page for browsing the API documentation.
+pub async fn swagger_ui() -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
+        SWAGGER_UI_HTML,
+    )
 }
