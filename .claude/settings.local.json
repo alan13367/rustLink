@@ -7,7 +7,8 @@
       "Bash(cargo check:*)",
       "Bash(cargo build:*)",
       "Skill(prd)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(docker-compose ps:*)"
     ]
   }
 }
