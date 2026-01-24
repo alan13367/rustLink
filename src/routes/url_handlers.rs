@@ -10,7 +10,7 @@ use validator::Validate;
 use url::Url as UrlParser;
 
 use super::AppState;
-use super::helpers::{generate_short_code, hours_from_now};
+use super::helpers::{ShortCodeService, hours_from_now};
 
 /// Create a short URL
 pub async fn create_url(
@@ -49,7 +49,7 @@ pub async fn create_url(
         }
         custom.clone()
     } else {
-        generate_short_code(state.short_code_length, state.short_code_max_attempts, &state.repository).await?
+        ShortCodeService::generate_short_code(state.short_code_length, state.short_code_max_attempts, &state.repository).await?
     };
 
     // Calculate expiry

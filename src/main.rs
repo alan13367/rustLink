@@ -8,6 +8,7 @@ mod middleware;
 mod middleware_impls;
 mod models;
 mod routes;
+mod services;
 mod state;
 mod util;
 

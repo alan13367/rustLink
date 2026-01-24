@@ -1,9 +1,11 @@
 use crate::auth::AuthService;
-use crate::db::Repository;
 use crate::error::{AppError, AppResult};
 
 // Re-export hours_from_now from util module for convenience
 pub use crate::util::hours_from_now;
+
+// Re-export generate_short_code from services module for convenience
+pub use crate::services::ShortCodeService;
 
 /// Helper to extract JWT claims from Authorization header
 pub(crate) fn extract_claims(
@@ -26,29 +28,4 @@ pub(crate) fn extract_claims(
 
     let token = &auth_str[7..];
     auth_service.validate_token(token)
-}
-
-/// Generate a unique short code
-pub(crate) async fn generate_short_code(
-    length: usize,
-    max_attempts: u32,
-    repository: &Repository,
-) -> AppResult<String> {
-    const ALPHABET_CHARS: &[char] = &[
-        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
-        'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-        'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
-        'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-    ];
-
-    for _ in 0..max_attempts {
-        let code = nanoid::nanoid!(length, ALPHABET_CHARS);
-
-        if !repository.short_code_exists(&code).await? {
-            return Ok(code);
-        }
-    }
-
-    Err(AppError::ShortCodeGenerationFailed)
 }
