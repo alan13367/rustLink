@@ -2,6 +2,28 @@
 Started: Sat Jan 24 12:45:08 CET 2026
 ---
 
+## [2025-01-24] - US-006
+- Refactored config.rs into focused submodules
+- Created src/config/ directory with modular structure
+- Split 315-line config.rs into focused submodules:
+  - mod.rs (240 lines) - Main Config struct and from_env()
+  - server.rs (11 lines) - ServerConfig
+  - database.rs (32 lines) - DatabaseConfig + validation
+  - cache.rs (25 lines) - CacheConfig + validation
+  - rate_limit.rs (26 lines) - RateLimitConfig + validation
+  - url.rs (42 lines) - UrlConfig + validation
+  - auth.rs (26 lines) - AuthConfig + validation
+  - cors.rs (8 lines) - CorsConfig
+- Each submodule handles validation for its specific section
+- Maintained backward compatibility with existing environment variable names
+- cargo check and cargo test pass
+
+**Learnings for future iterations:**
+- Splitting large config files by domain makes it much easier to find specific settings
+- Validation logic should live alongside the struct it validates for better organization
+- Re-exporting types from mod.rs maintains backward compatibility for imports
+
+---
 ## [2025-01-24] - US-005
 - Moved AppState to dedicated state module
 - Created src/state.rs (46 lines) with AppState struct
