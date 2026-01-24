@@ -2,63 +2,46 @@ use crate::error::{AppError, AppResult};
 use serde::Deserialize;
 use std::env;
 
+pub mod auth;
+pub mod cache;
+pub mod cors;
+pub mod database;
+pub mod rate_limit;
+pub mod server;
+pub mod url;
+
+// Re-export all configuration types
+pub use auth::AuthConfig;
+pub use cache::CacheConfig;
+pub use cors::CorsConfig;
+pub use database::DatabaseConfig;
+pub use rate_limit::RateLimitConfig;
+pub use server::ServerConfig;
+pub use url::UrlConfig;
+
+/// Unified configuration struct containing all application settings
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {
+    /// Server configuration
     pub server: ServerConfig,
+
+    /// Database configuration
     pub database: DatabaseConfig,
+
+    /// Cache configuration
     pub cache: CacheConfig,
+
+    /// URL shortening configuration
     pub url: UrlConfig,
+
+    /// Authentication configuration
     pub auth: AuthConfig,
+
+    /// Rate limiting configuration
     pub rate_limit: RateLimitConfig,
+
+    /// CORS configuration
     pub cors: CorsConfig,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct ServerConfig {
-    pub host: String,
-    pub port: u16,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct DatabaseConfig {
-    pub url: String,
-    pub max_connections: u32,
-    pub min_connections: u32,
-    pub acquire_timeout_seconds: u64,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct CacheConfig {
-    pub url: String,
-    pub max_connections: u32,
-    pub default_ttl_seconds: u64,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct UrlConfig {
-    pub short_code_length: usize,
-    pub base_url: String,
-    pub default_expiry_hours: i64,
-    pub short_code_max_attempts: u32,
-    pub cache_enabled: bool,
-    pub strict_url_validation: bool,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct AuthConfig {
-    pub jwt_secret: String,
-    pub jwt_expiration_hours: i64,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct RateLimitConfig {
-    pub requests_per_minute: u64,
-    pub burst_size: u32,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct CorsConfig {
-    pub allowed_origins: Vec<String>,
 }
 
 impl Config {
@@ -197,70 +180,12 @@ impl Config {
 
     /// Validate configuration values
     pub fn validate(&self) -> AppResult<()> {
-        // Validate database settings
-        if self.database.min_connections > self.database.max_connections {
-            return Err(AppError::Configuration(
-                "DB_MIN_CONNECTIONS cannot be greater than DB_MAX_CONNECTIONS".to_string(),
-            ));
-        }
-
-        if self.database.acquire_timeout_seconds == 0 {
-            return Err(AppError::Configuration(
-                "DB_ACQUIRE_TIMEOUT_SECONDS must be greater than 0".to_string(),
-            ));
-        }
-
-        // Validate URL settings
-        if self.url.short_code_length < 4 || self.url.short_code_length > 16 {
-            return Err(AppError::Configuration(
-                "SHORT_CODE_LENGTH must be between 4 and 16".to_string(),
-            ));
-        }
-
-        if self.url.default_expiry_hours < 1 {
-            return Err(AppError::Configuration(
-                "DEFAULT_EXPIRY_HOURS must be at least 1".to_string(),
-            ));
-        }
-
-        if self.url.short_code_max_attempts < 1 || self.url.short_code_max_attempts > 100 {
-            return Err(AppError::Configuration(
-                "SHORT_CODE_MAX_ATTEMPTS must be between 1 and 100".to_string(),
-            ));
-        }
-
-        // Validate JWT settings
-        if self.auth.jwt_secret.len() < 32 {
-            return Err(AppError::Configuration(
-                "JWT_SECRET must be at least 32 characters for security".to_string(),
-            ));
-        }
-
-        if self.auth.jwt_expiration_hours < 1 {
-            return Err(AppError::Configuration(
-                "JWT_EXPIRATION_HOURS must be at least 1".to_string(),
-            ));
-        }
-
-        // Validate rate limiting settings
-        if self.rate_limit.requests_per_minute == 0 {
-            return Err(AppError::Configuration(
-                "RATE_LIMIT_PER_MINUTE must be greater than 0".to_string(),
-            ));
-        }
-
-        if self.rate_limit.burst_size == 0 {
-            return Err(AppError::Configuration(
-                "RATE_LIMIT_BURST must be greater than 0".to_string(),
-            ));
-        }
-
-        // Validate cache settings
-        if self.cache.default_ttl_seconds == 0 {
-            return Err(AppError::Configuration(
-                "CACHE_DEFAULT_TTL_SECONDS must be greater than 0".to_string(),
-            ));
-        }
+        // Validate each section
+        self.database.validate().map_err(|e| AppError::Configuration(e))?;
+        self.cache.validate().map_err(|e| AppError::Configuration(e))?;
+        self.url.validate().map_err(|e| AppError::Configuration(e))?;
+        self.auth.validate().map_err(|e| AppError::Configuration(e))?;
+        self.rate_limit.validate().map_err(|e| AppError::Configuration(e))?;
 
         Ok(())
     }
