@@ -3,10 +3,10 @@ use crate::models::UrlEntry;
 use chrono::{DateTime, Utc};
 use sqlx::{
     postgres::{PgConnectOptions, PgPoolOptions},
-    PgPool, ConnectOptions,
+    ConnectOptions, PgPool,
 };
-use std::time::Duration;
 use std::str::FromStr;
+use std::time::Duration;
 
 /// Database repository
 pub struct Repository {
@@ -131,7 +131,10 @@ impl Repository {
     }
 
     /// Update expiry for a URL
-    #[allow(dead_code)]
+    #[expect(
+        dead_code,
+        reason = "API extension: URL expiry update endpoint planned"
+    )]
     pub async fn update_expiry(
         &self,
         short_code: &str,

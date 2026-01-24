@@ -14,7 +14,10 @@ pub struct User {
 /// Repository extension for user operations
 impl Repository {
     /// Create a new user
-    #[allow(dead_code)]
+    #[expect(
+        dead_code,
+        reason = "API extension: user registration endpoint planned"
+    )]
     pub async fn create_user(&self, username: &str, password_hash: &str) -> Result<User, AppError> {
         let result = sqlx::query_as::<_, User>(
             r#"
@@ -46,7 +49,7 @@ impl Repository {
     }
 
     /// Get a user by ID
-    #[allow(dead_code)]
+    #[expect(dead_code, reason = "API extension: user profile endpoint planned")]
     pub async fn get_user_by_id(&self, user_id: i64) -> Result<Option<User>, AppError> {
         let result = sqlx::query_as::<_, User>(
             r#"

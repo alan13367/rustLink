@@ -1,4 +1,4 @@
-/// Utility functions for general-purpose use across the application.
+//! Utility functions for general-purpose use across the application.
 
 /// Calculate the number of hours from now until a given datetime.
 ///

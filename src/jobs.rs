@@ -8,7 +8,10 @@ pub enum Job {
     /// Increment click count for a URL
     IncrementClickCount { short_code: String },
     /// Delete cache entry for a URL
-    #[allow(dead_code)]
+    #[expect(
+        dead_code,
+        reason = "planned feature: explicit cache invalidation via job queue"
+    )]
     InvalidateCache { short_code: String },
 }
 
@@ -48,7 +51,10 @@ impl Worker {
     }
 
     /// Set worker configuration
-    #[allow(dead_code)]
+    #[expect(
+        dead_code,
+        reason = "builder method for configuring worker retry behavior"
+    )]
     pub fn with_config(mut self, config: WorkerConfig) -> Self {
         self.config = config;
         self
@@ -80,16 +86,16 @@ impl Worker {
                     let delay = std::time::Duration::from_millis(self.config.retry_delay_ms);
                     warn!(
                         "Job failed (attempt {}/{}), retrying in {:?}: {:?}",
-                        retries,
-                        self.config.max_retries,
-                        delay,
-                        job
+                        retries, self.config.max_retries, delay, job
                     );
                     tokio::time::sleep(delay).await;
                 }
                 Err(_e) => {
                     // Job failed after all retries
-                    error!("Job failed after {} retries: {:?}", self.config.max_retries, job);
+                    error!(
+                        "Job failed after {} retries: {:?}",
+                        self.config.max_retries, job
+                    );
                     break;
                 }
             }
@@ -100,9 +106,7 @@ impl Worker {
     async fn execute_job(&self, job: &Job) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         match job {
             Job::IncrementClickCount { short_code } => {
-                self.repository
-                    .increment_click_count(short_code)
-                    .await?;
+                self.repository.increment_click_count(short_code).await?;
                 Ok(())
             }
             Job::InvalidateCache { short_code: _ } => {
@@ -128,7 +132,7 @@ impl JobSender {
 
     /// Submit a job to be processed asynchronously
     pub fn send(&self, job: Job) {
-        if let Err(_) = self.sender.send(job) {
+        if self.sender.send(job).is_err() {
             error!("Failed to send job to worker - channel may be closed");
         }
     }
@@ -139,7 +143,10 @@ impl JobSender {
     }
 
     /// Submit an invalidate cache job
-    #[allow(dead_code)]
+    #[expect(
+        dead_code,
+        reason = "planned feature: explicit cache invalidation via job queue"
+    )]
     pub fn invalidate_cache(&self, short_code: String) {
         self.send(Job::InvalidateCache { short_code });
     }

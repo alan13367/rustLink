@@ -181,11 +181,11 @@ impl Config {
     /// Validate configuration values
     pub fn validate(&self) -> AppResult<()> {
         // Validate each section
-        self.database.validate().map_err(|e| AppError::Configuration(e))?;
-        self.cache.validate().map_err(|e| AppError::Configuration(e))?;
-        self.url.validate().map_err(|e| AppError::Configuration(e))?;
-        self.auth.validate().map_err(|e| AppError::Configuration(e))?;
-        self.rate_limit.validate().map_err(|e| AppError::Configuration(e))?;
+        self.database.validate().map_err(AppError::Configuration)?;
+        self.cache.validate().map_err(AppError::Configuration)?;
+        self.url.validate().map_err(AppError::Configuration)?;
+        self.auth.validate().map_err(AppError::Configuration)?;
+        self.rate_limit.validate().map_err(AppError::Configuration)?;
 
         Ok(())
     }

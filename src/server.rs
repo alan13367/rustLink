@@ -44,11 +44,7 @@ use tracing::{error, info};
 /// - Migration fails
 /// - Server binding fails
 /// - Server runtime error occurs
-pub async fn run_server(
-    config: Config,
-    addr: String,
-    should_migrate: bool,
-) -> AppResult<()> {
+pub async fn run_server(config: Config, addr: String, should_migrate: bool) -> AppResult<()> {
     info!("Starting rustLink server...");
 
     // Initialize database connection pool
@@ -112,12 +108,12 @@ pub async fn run_server(
     });
 
     // Create router
-    let app = routes::create_router(state, config.cors.allowed_origins, config.rate_limit);
+    let app = routes::create_router(state, config.cors.allowed_origins, config.rate_limit)?;
 
     // Start server
-    let listener = TcpListener::bind(&addr).await.map_err(|e| {
-        AppError::Internal(format!("Failed to bind to address {}: {}", addr, e))
-    })?;
+    let listener = TcpListener::bind(&addr)
+        .await
+        .map_err(|e| AppError::Internal(format!("Failed to bind to address {}: {}", addr, e)))?;
 
     info!("Server listening on {}", addr);
     info!("Base URL: {}", config.url.base_url);
@@ -148,29 +144,33 @@ pub async fn run_server(
 /// # Returns
 ///
 /// A future that resolves when a shutdown signal is received.
-fn create_shutdown_signal() -> impl std::future::Future<Output = ()> {
-    async {
-        let ctrl_c = async {
-            tokio::signal::ctrl_c()
-                .await
-                .expect("failed to install Ctrl+C handler");
-        };
+///
+/// # Panics
+///
+/// Panics if signal handler installation fails. This is intentional because
+/// signal handler failures are unrecoverable system-level errors that indicate
+/// the OS cannot deliver shutdown signals, making graceful shutdown impossible.
+async fn create_shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
 
-        #[cfg(unix)]
-        let terminate = async {
-            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-                .expect("failed to install signal handler")
-                .recv()
-                .await;
-        };
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
 
-        #[cfg(unix)]
-        tokio::select! {
-            _ = ctrl_c => {},
-            _ = terminate => {},
-        }
-
-        #[cfg(not(unix))]
-        ctrl_c.await;
+    #[cfg(unix)]
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
     }
+
+    #[cfg(not(unix))]
+    ctrl_c.await;
 }

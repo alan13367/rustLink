@@ -1,3 +1,12 @@
+//! Middleware implementations for request processing.
+//!
+//! This module provides middleware for request ID tracking, request context,
+//! and authentication-aware rate limiting. Some types are provided for testing
+//! and future use in logging/tracing.
+
+// Allow dead code for utility types used in tests and planned features
+#![allow(dead_code)]
+
 use crate::auth::Claims;
 use axum::{
     extract::Request,
@@ -13,12 +22,12 @@ use uuid::Uuid;
 pub struct RequestId(pub String);
 
 impl RequestId {
-    #[allow(dead_code)]
+    /// Create a new random request ID
     pub fn new() -> Self {
         Self(Uuid::new_v4().to_string())
     }
 
-    #[allow(dead_code)]
+    /// Get the request ID as a string slice
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -32,7 +41,6 @@ impl From<String> for RequestId {
 
 /// Request context containing request metadata
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct RequestContext {
     pub request_id: String,
     pub client_ip: String,
@@ -50,7 +58,7 @@ impl RequestContext {
         }
     }
 
-    #[allow(dead_code)]
+    /// Add a user ID to the request context
     pub fn with_user(mut self, user_id: String) -> Self {
         self.user_id = Some(user_id);
         self
@@ -88,10 +96,7 @@ pub fn extract_user_agent(headers: &HeaderMap) -> Option<String> {
 }
 
 /// Request ID middleware - adds a unique ID to each request
-pub async fn request_id_middleware(
-    mut req: Request,
-    next: Next,
-) -> Response {
+pub async fn request_id_middleware(mut req: Request, next: Next) -> Response {
     // Try to get existing request ID from header, or generate new one
     let request_id: String = req
         .headers()
@@ -121,10 +126,7 @@ pub async fn request_id_middleware(
 }
 
 /// Request context middleware - adds context to each request
-pub async fn request_context_middleware(
-    mut req: Request,
-    next: Next,
-) -> Response {
+pub async fn request_context_middleware(mut req: Request, next: Next) -> Response {
     let headers = req.headers();
     let request_id = req
         .extensions()
@@ -188,12 +190,8 @@ mod tests {
 
     #[test]
     fn test_request_context_with_user() {
-        let ctx = RequestContext::new(
-            "test-123".to_string(),
-            "127.0.0.1".to_string(),
-            None,
-        )
-        .with_user("user-456".to_string());
+        let ctx = RequestContext::new("test-123".to_string(), "127.0.0.1".to_string(), None)
+            .with_user("user-456".to_string());
 
         assert_eq!(ctx.user_id, Some("user-456".to_string()));
     }
@@ -210,10 +208,7 @@ mod tests {
     #[test]
     fn test_extract_client_ip_from_multiple_forwarded() {
         let mut headers = HeaderMap::new();
-        headers.insert(
-            "x-forwarded-for",
-            "192.168.1.1, 10.0.0.1".parse().unwrap(),
-        );
+        headers.insert("x-forwarded-for", "192.168.1.1, 10.0.0.1".parse().unwrap());
 
         let ip = extract_client_ip(&headers);
         assert_eq!(ip, "192.168.1.1");

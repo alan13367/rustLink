@@ -1,0 +1,413 @@
+openapi: 3.0.3
+info:
+  title: rustLink API
+  description: A high-performance URL shortener API built with Rust
+  version: 1.0.0
+  license:
+    name: MIT
+  contact:
+    name: rustLink
+    url: https://github.com/alan/rustLink
+
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+
+tags:
+  - name: urls
+    description: URL shortening operations
+  - name: auth
+    description: Authentication endpoints
+  - name: admin
+    description: Administrative endpoints (requires authentication)
+  - name: health
+    description: Health check endpoints
+
+paths:
+  /_health:
+    get:
+      summary: Health check
+      description: Check the health status of the API including database and cache connectivity
+      tags: [health]
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheckResponse'
+
+  /:
+    post:
+      summary: Create short URL
+      description: Create a new shortened URL with optional custom code and expiry
+      tags: [urls]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUrlRequest'
+      responses:
+        '200':
+          description: URL created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateUrlResponse'
+        '400':
+          description: Invalid URL or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Custom code already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /{code}:
+    get:
+      summary: Resolve short URL
+      description: Redirect to the original URL
+      tags: [urls]
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The short code
+          example: abc123XY
+      responses:
+        '301':
+          description: Redirect to original URL
+        '404':
+          description: Short code not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '410':
+          description: URL has expired
+
+    delete:
+      summary: Delete short URL
+      description: Delete a shortened URL (requires authentication)
+      tags: [admin]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The short code to delete
+      responses:
+        '200':
+          description: URL deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatsResponse'
+        '401':
+          description: Unauthorized
+        '404':
+          description: Short code not found
+
+  /{code}/info:
+    get:
+      summary: Get URL info
+      description: Get metadata about a shortened URL
+      tags: [urls]
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The short code
+      responses:
+        '200':
+          description: URL information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UrlInfoResponse'
+        '404':
+          description: Short code not found
+
+  /login:
+    post:
+      summary: User login
+      description: Authenticate and receive a JWT token
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+
+  /_stats:
+    get:
+      summary: Get statistics
+      description: Get global URL statistics (requires authentication)
+      tags: [admin]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Statistics retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatsResponse'
+        '401':
+          description: Unauthorized
+
+  /_list:
+    get:
+      summary: List all URLs
+      description: Get a paginated list of all URLs (requires authentication)
+      tags: [admin]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+          description: Number of items per page
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+          description: Number of items to skip
+      responses:
+        '200':
+          description: List of URLs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedUrlResponse'
+        '401':
+          description: Unauthorized
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    CreateUrlRequest:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          format: uri
+          description: The URL to shorten
+          example: https://example.com/very/long/path
+        expiry_hours:
+          type: integer
+          minimum: 1
+          maximum: 87600
+          description: Optional expiry time in hours
+          example: 720
+        custom_code:
+          type: string
+          minLength: 4
+          maxLength: 16
+          pattern: ^[a-zA-Z0-9]+$
+          description: Optional custom short code
+          example: mycustomcode
+
+    CreateUrlResponse:
+      type: object
+      properties:
+        short_code:
+          type: string
+          description: The generated or custom short code
+          example: abc123XY
+        short_url:
+          type: string
+          description: Full short URL for sharing
+          example: http://localhost:3000/abc123XY
+        original_url:
+          type: string
+          description: The original URL
+          example: https://example.com/very/long/path
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the URL expires
+
+    UrlInfoResponse:
+      type: object
+      properties:
+        short_code:
+          type: string
+          example: abc123XY
+        original_url:
+          type: string
+          example: https://example.com
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        click_count:
+          type: integer
+          example: 42
+        last_clicked_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          example: admin
+        password:
+          type: string
+          format: password
+          example: secret123
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: JWT token for authentication
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        username:
+          type: string
+          example: admin
+
+    StatsResponse:
+      type: object
+      properties:
+        total_urls:
+          type: integer
+          example: 1000
+        total_clicks:
+          type: integer
+          example: 15000
+        active_urls:
+          type: integer
+          example: 950
+        expired_urls:
+          type: integer
+          example: 50
+
+    PaginatedUrlResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/UrlEntry'
+        pagination:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    UrlEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        short_code:
+          type: string
+        original_url:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        click_count:
+          type: integer
+        last_clicked_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    PaginationMeta:
+      type: object
+      properties:
+        total:
+          type: integer
+          example: 100
+        limit:
+          type: integer
+          example: 50
+        offset:
+          type: integer
+          example: 0
+        has_next:
+          type: boolean
+        has_prev:
+          type: boolean
+
+    HealthCheckResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        database:
+          type: object
+          properties:
+            status:
+              type: string
+            latency_ms:
+              type: integer
+        cache:
+          type: object
+          properties:
+            status:
+              type: string
+            latency_ms:
+              type: integer
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error code
+          example: NOT_FOUND
+        message:
+          type: string
+          description: Human-readable error message
+          example: URL not found: abc123
